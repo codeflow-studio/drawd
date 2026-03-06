@@ -6,8 +6,10 @@ export function useCanvas() {
   const [panStart, setPanStart] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [dragging, setDragging] = useState(null);
+  const [spaceHeld, setSpaceHeld] = useState(false);
 
   const canvasRef = useRef(null);
+  const isSpaceHeld = useRef(false);
 
   const handleDragStart = useCallback((e, screenId, screens) => {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -43,6 +45,11 @@ export function useCanvas() {
   }, []);
 
   const handleCanvasMouseDown = useCallback((e) => {
+    if (isSpaceHeld.current) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+      return true;
+    }
     if (e.target === canvasRef.current || e.target.classList.contains("canvas-inner")) {
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
@@ -53,8 +60,12 @@ export function useCanvas() {
 
   const handleWheel = useCallback((e) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.02 : 0.02;
-    setZoom((z) => Math.max(0.2, Math.min(2, z + delta)));
+    if (e.metaKey || e.ctrlKey) {
+      const delta = e.deltaY > 0 ? -0.01 : 0.01;
+      setZoom((z) => Math.max(0.2, Math.min(2, z + delta)));
+    } else {
+      setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
+    }
   }, []);
 
   useEffect(() => {
@@ -65,6 +76,30 @@ export function useCanvas() {
     }
   }, [handleWheel]);
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.code === "Space" && !e.repeat) {
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        e.preventDefault();
+        isSpaceHeld.current = true;
+        setSpaceHeld(true);
+      }
+    };
+    const onKeyUp = (e) => {
+      if (e.code === "Space") {
+        isSpaceHeld.current = false;
+        setSpaceHeld(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keyup", onKeyUp);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
   return {
     pan,
     setPan,
@@ -73,6 +108,8 @@ export function useCanvas() {
     isPanning,
     dragging,
     canvasRef,
+    isSpaceHeld,
+    spaceHeld,
     handleDragStart,
     handleMouseMove,
     handleMouseUp,

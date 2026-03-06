@@ -19,7 +19,7 @@ import { EmptyState } from "./components/EmptyState";
 const HEADER_HEIGHT = 37;
 
 export default function FlowForge() {
-  const { pan, setPan, zoom, setZoom, isPanning, dragging, canvasRef, handleDragStart, handleMouseMove, handleMouseUp, handleCanvasMouseDown } = useCanvas();
+  const { pan, setPan, zoom, setZoom, isPanning, dragging, canvasRef, isSpaceHeld, spaceHeld, handleDragStart, handleMouseMove, handleMouseUp, handleCanvasMouseDown } = useCanvas();
   const {
     screens, connections, selectedScreen, setSelectedScreen,
     fileInputRef, addScreen, removeScreen, renameScreen, moveScreen,
@@ -218,6 +218,15 @@ export default function FlowForge() {
   }, [canvasRef, pan, zoom]);
 
   const onCanvasMouseDown = useCallback((e) => {
+    // Space+click: always pan, skip all interaction guards
+    if (isSpaceHeld.current) {
+      if (selectedConnection) setSelectedConnection(null);
+      if (hotspotInteraction && hotspotInteraction.mode !== "draw" && hotspotInteraction.mode !== "reposition" && hotspotInteraction.mode !== "hotspot-drag" && hotspotInteraction.mode !== "resize" && hotspotInteraction.mode !== "conn-endpoint-drag") {
+        setHotspotInteraction(null);
+      }
+      handleCanvasMouseDown(e);
+      return;
+    }
     // Clear selected connection on canvas click
     if (selectedConnection) setSelectedConnection(null);
     // Cancel hotspot interaction on canvas click
@@ -235,7 +244,7 @@ export default function FlowForge() {
     }
     const wasPan = handleCanvasMouseDown(e);
     if (wasPan) setSelectedScreen(null);
-  }, [handleCanvasMouseDown, setSelectedScreen, connecting, cancelConnecting, hotspotInteraction, selectedConnection]);
+  }, [handleCanvasMouseDown, setSelectedScreen, connecting, cancelConnecting, hotspotInteraction, selectedConnection, isSpaceHeld]);
 
   const onCanvasMouseMove = useCallback((e) => {
     // Handle hotspot interactions
@@ -619,7 +628,9 @@ export default function FlowForge() {
         ? (resizeCursors[hotspotInteraction.handle] || "default")
         : hotspotInteraction?.mode === "reposition"
           ? "grabbing"
-          : isPanning ? "grabbing" : "default";
+          : (spaceHeld && isPanning) ? "grabbing"
+            : spaceHeld ? "grab"
+              : isPanning ? "grabbing" : "default";
 
   const selectedHotspotId = hotspotInteraction?.hotspotId || null;
   const drawRect = hotspotInteraction?.mode === "draw" ? hotspotInteraction.drawRect : null;
@@ -690,6 +701,7 @@ export default function FlowForge() {
                 selected={selectedScreen === screen.id}
                 onSelect={setSelectedScreen}
                 onDragStart={onDragStart}
+                isSpaceHeld={isSpaceHeld}
                 onAddHotspot={addHotspotViaConnect}
                 onRemoveScreen={removeScreen}
                 onDotDragStart={onDotDragStart}

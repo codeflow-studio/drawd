@@ -6,7 +6,7 @@ export function ScreenNode({
   onDotDragStart, onConnectTarget, onHoverTarget, isConnectHoverTarget, isConnecting,
   selectedHotspotId, onHotspotMouseDown, onImageAreaMouseDown, onHotspotDragHandleMouseDown,
   onResizeHandleMouseDown, onScreenDimensions, drawRect, isHotspotDragging,
-  onUpdateDescription,
+  onUpdateDescription, isSpaceHeld,
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -27,6 +27,7 @@ export function ScreenNode({
   return (
     <div
       onMouseDown={(e) => {
+        if (isSpaceHeld?.current) return;
         if (e.target.closest(".hotspot-area") || e.target.closest(".screen-btn")) return;
         if (e.target.closest(".connection-dot-right")) return;
         if (e.target.closest(".hotspot-drag-handle")) return;
@@ -135,6 +136,7 @@ export function ScreenNode({
         className="screen-image-area"
         style={{ position: "relative", minHeight: 120, background: "#0d0d15" }}
         onMouseDown={(e) => {
+          if (isSpaceHeld?.current) return;
           if (e.target.closest(".hotspot-area") || e.target.closest(".hotspot-drag-handle") || e.target.closest(".resize-handle")) return;
           if (screen.imageData && onImageAreaMouseDown) {
             onImageAreaMouseDown(e, screen.id);
