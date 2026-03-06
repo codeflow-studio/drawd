@@ -1,16 +1,16 @@
 import { COLORS, FONTS } from "../styles/theme";
 
-export function ConnectionLines({ screens, connections }) {
+export function ConnectionLines({ screens, connections, previewLine }) {
   return (
     <svg
       style={{
         position: "absolute",
         top: 0,
         left: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
+        width: 1,
+        height: 1,
         overflow: "visible",
+        pointerEvents: "none",
       }}
     >
       <defs>
@@ -66,6 +66,27 @@ export function ConnectionLines({ screens, connections }) {
           </g>
         );
       })}
+      {previewLine && (() => {
+        const from = screens.find((s) => s.id === previewLine.fromScreenId);
+        if (!from) return null;
+        const fromX = from.x + (from.width || 220);
+        const fromY = from.y + 100;
+        const toX = previewLine.toX;
+        const toY = previewLine.toY;
+        const dx = toX - fromX;
+        const cp = Math.max(80, Math.abs(dx) * 0.4);
+        return (
+          <path
+            d={`M ${fromX} ${fromY} C ${fromX + cp} ${fromY}, ${toX - cp} ${toY}, ${toX} ${toY}`}
+            fill="none"
+            stroke={COLORS.connectionLine}
+            strokeWidth={2.5}
+            strokeDasharray="8 4"
+            markerEnd="url(#arrowhead)"
+            opacity={0.4}
+          />
+        );
+      })()}
     </svg>
   );
 }

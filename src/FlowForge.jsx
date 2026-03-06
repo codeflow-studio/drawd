@@ -32,17 +32,82 @@ export default function FlowForge() {
   const [importConfirm, setImportConfirm] = useState(null);
   const importFileRef = useRef(null);
 
+  // Drag-to-connect state
+  const [connecting, setConnecting] = useState(null);
+  const [hoverTarget, setHoverTarget] = useState(null);
+
+  const cancelConnecting = useCallback(() => {
+    setConnecting(null);
+    setHoverTarget(null);
+  }, []);
+
+  const onDotDragStart = useCallback((e, screenId) => {
+    e.preventDefault();
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left - pan.x) / zoom;
+    const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+    setConnecting({ fromScreenId: screenId, mode: "drag", mouseX, mouseY });
+  }, [canvasRef, pan, zoom]);
+
+  const onStartConnect = useCallback((screenId) => {
+    const screen = screens.find((s) => s.id === screenId);
+    if (!screen) return;
+    const mouseX = screen.x + (screen.width || 220) + 40;
+    const mouseY = screen.y + 100;
+    setConnecting({ fromScreenId: screenId, mode: "click", mouseX, mouseY });
+  }, [screens]);
+
+  const onConnectComplete = useCallback((targetScreenId) => {
+    if (!connecting) return;
+    if (targetScreenId === connecting.fromScreenId) {
+      cancelConnecting();
+      return;
+    }
+    const screen = screens.find((s) => s.id === connecting.fromScreenId);
+    setHotspotModal({ screen, hotspot: null, prefilledTarget: targetScreenId });
+    cancelConnecting();
+  }, [connecting, screens, cancelConnecting]);
+
   const onCanvasMouseDown = useCallback((e) => {
+    if (connecting) {
+      if (connecting.mode === "click") {
+        cancelConnecting();
+      }
+      return;
+    }
     const wasPan = handleCanvasMouseDown(e);
     if (wasPan) setSelectedScreen(null);
-  }, [handleCanvasMouseDown, setSelectedScreen]);
+  }, [handleCanvasMouseDown, setSelectedScreen, connecting, cancelConnecting]);
 
   const onCanvasMouseMove = useCallback((e) => {
+    if (connecting) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left - pan.x) / zoom;
+      const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+      setConnecting((prev) => ({ ...prev, mouseX, mouseY }));
+      return;
+    }
     const result = handleMouseMove(e);
     if (result?.type === "drag") {
       moveScreen(result.id, result.x, result.y);
     }
-  }, [handleMouseMove, moveScreen]);
+  }, [handleMouseMove, moveScreen, connecting, canvasRef, pan, zoom]);
+
+  const onCanvasMouseUp = useCallback((e) => {
+    if (connecting) {
+      cancelConnecting();
+      return;
+    }
+    handleMouseUp(e);
+  }, [connecting, cancelConnecting, handleMouseUp]);
+
+  const onCanvasMouseLeave = useCallback((e) => {
+    if (connecting) {
+      cancelConnecting();
+      return;
+    }
+    handleMouseUp(e);
+  }, [connecting, cancelConnecting, handleMouseUp]);
 
   const onDragStart = useCallback((e, screenId) => {
     handleDragStart(e, screenId, screens);
@@ -52,6 +117,10 @@ export default function FlowForge() {
     const screen = screens.find((s) => s.id === screenId);
     setHotspotModal({ screen, hotspot: null });
   }, [screens]);
+
+  const addHotspotViaConnect = useCallback((screenId) => {
+    onStartConnect(screenId);
+  }, [onStartConnect]);
 
   const onExport = useCallback(() => {
     exportFlow(screens, connections, pan, zoom);
@@ -102,6 +171,17 @@ export default function FlowForge() {
     setShowInstructions(true);
   }, [screens, connections]);
 
+  // Escape key cancels connecting
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape" && connecting) {
+        cancelConnecting();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [connecting, cancelConnecting]);
+
   useEffect(() => {
     const onPaste = (e) => {
       const tag = document.activeElement?.tagName;
@@ -113,6 +193,14 @@ export default function FlowForge() {
   }, [handlePaste]);
 
   const selectedScreenData = screens.find((s) => s.id === selectedScreen);
+
+  const previewLine = connecting
+    ? { fromScreenId: connecting.fromScreenId, toX: connecting.mouseX, toY: connecting.mouseY }
+    : null;
+
+  const canvasCursor = connecting
+    ? "crosshair"
+    : isPanning ? "grabbing" : "default";
 
   return (
     <div
@@ -144,8 +232,8 @@ export default function FlowForge() {
           ref={canvasRef}
           onMouseDown={onCanvasMouseDown}
           onMouseMove={onCanvasMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onMouseUp={onCanvasMouseUp}
+          onMouseLeave={onCanvasMouseLeave}
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleCanvasDrop}
           style={{
@@ -153,7 +241,7 @@ export default function FlowForge() {
             position: "relative",
             overflow: "hidden",
             background: COLORS.canvasBg,
-            cursor: isPanning ? "grabbing" : "default",
+            cursor: canvasCursor,
             backgroundImage: `radial-gradient(circle, ${COLORS.canvasDot} 1px, transparent 1px)`,
             backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
             backgroundPosition: `${pan.x}px ${pan.y}px`,
@@ -169,7 +257,7 @@ export default function FlowForge() {
               transformOrigin: "0 0",
             }}
           >
-            <ConnectionLines screens={screens} connections={connections} />
+            <ConnectionLines screens={screens} connections={connections} previewLine={previewLine} />
             {screens.map((screen) => (
               <ScreenNode
                 key={screen.id}
@@ -177,8 +265,13 @@ export default function FlowForge() {
                 selected={selectedScreen === screen.id}
                 onSelect={setSelectedScreen}
                 onDragStart={onDragStart}
-                onAddHotspot={addHotspot}
+                onAddHotspot={addHotspotViaConnect}
                 onRemoveScreen={removeScreen}
+                onDotDragStart={onDotDragStart}
+                onConnectTarget={onConnectComplete}
+                onHoverTarget={setHoverTarget}
+                isConnectHoverTarget={hoverTarget === screen.id}
+                isConnecting={!!connecting}
               />
             ))}
           </div>
@@ -239,6 +332,7 @@ export default function FlowForge() {
           screen={hotspotModal.screen}
           hotspot={hotspotModal.hotspot}
           screens={screens}
+          prefilledTarget={hotspotModal.prefilledTarget || null}
           onSave={(hs) => { saveHotspot(hotspotModal.screen.id, hs); setHotspotModal(null); }}
           onDelete={(id) => { deleteHotspot(hotspotModal.screen.id, id); setHotspotModal(null); }}
           onClose={() => setHotspotModal(null)}

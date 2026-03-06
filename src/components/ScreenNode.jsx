@@ -1,15 +1,32 @@
 import { useState } from "react";
 import { COLORS, FONTS } from "../styles/theme";
 
-export function ScreenNode({ screen, selected, onSelect, onDragStart, onAddHotspot, onRemoveScreen }) {
+export function ScreenNode({
+  screen, selected, onSelect, onDragStart, onAddHotspot, onRemoveScreen,
+  onDotDragStart, onConnectTarget, onHoverTarget, isConnectHoverTarget, isConnecting,
+}) {
   const [imgLoaded, setImgLoaded] = useState(false);
+
+  const borderColor = isConnectHoverTarget
+    ? COLORS.success
+    : selected ? COLORS.borderActive : COLORS.border;
 
   return (
     <div
       onMouseDown={(e) => {
         if (e.target.closest(".hotspot-area") || e.target.closest(".screen-btn")) return;
+        if (e.target.closest(".connection-dot-right")) return;
         onSelect(screen.id);
         onDragStart(e, screen.id);
+      }}
+      onMouseUp={() => {
+        if (isConnecting) onConnectTarget?.(screen.id);
+      }}
+      onMouseEnter={() => {
+        if (isConnecting) onHoverTarget?.(screen.id);
+      }}
+      onMouseLeave={() => {
+        if (isConnecting) onHoverTarget?.(null);
       }}
       style={{
         position: "absolute",
@@ -18,12 +35,14 @@ export function ScreenNode({ screen, selected, onSelect, onDragStart, onAddHotsp
         width: screen.width || 220,
         minHeight: 80,
         background: COLORS.screenBg,
-        border: `2px solid ${selected ? COLORS.borderActive : COLORS.border}`,
+        border: `2px solid ${borderColor}`,
         borderRadius: 14,
-        cursor: "grab",
-        boxShadow: selected
-          ? `0 0 30px ${COLORS.accentGlow}, 0 8px 32px rgba(0,0,0,0.5)`
-          : "0 4px 20px rgba(0,0,0,0.4)",
+        cursor: isConnecting ? "default" : "grab",
+        boxShadow: isConnectHoverTarget
+          ? `0 0 30px rgba(0,210,211,0.3), 0 8px 32px rgba(0,0,0,0.5)`
+          : selected
+            ? `0 0 30px ${COLORS.accentGlow}, 0 8px 32px rgba(0,0,0,0.5)`
+            : "0 4px 20px rgba(0,0,0,0.4)",
         transition: "border-color 0.2s, box-shadow 0.2s",
         overflow: "hidden",
         userSelect: "none",
@@ -153,8 +172,13 @@ export function ScreenNode({ screen, selected, onSelect, onDragStart, onAddHotsp
         )}
       </div>
 
-      {/* Connection dots */}
+      {/* Right connection dot -- draggable */}
       <div
+        className="connection-dot-right"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          onDotDragStart?.(e, screen.id);
+        }}
         style={{
           position: "absolute",
           right: -7,
@@ -166,8 +190,13 @@ export function ScreenNode({ screen, selected, onSelect, onDragStart, onAddHotsp
           background: COLORS.accent,
           border: `2px solid ${COLORS.surface}`,
           boxShadow: `0 0 10px ${COLORS.accentGlow}`,
+          cursor: "crosshair",
+          padding: 4,
+          margin: -4,
+          boxSizing: "content-box",
         }}
       />
+      {/* Left connection dot */}
       <div
         style={{
           position: "absolute",
