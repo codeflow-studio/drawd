@@ -1,32 +1,46 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { COLORS, FONTS } from "../styles/theme";
 
 export function ScreenNode({
   screen, selected, onSelect, onDragStart, onAddHotspot, onRemoveScreen,
   onDotDragStart, onConnectTarget, onHoverTarget, isConnectHoverTarget, isConnecting,
+  selectedHotspotId, onHotspotMouseDown, onImageAreaMouseDown, onHotspotDragHandleMouseDown,
+  onResizeHandleMouseDown, onScreenDimensions, drawRect, isHotspotDragging,
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const imgRef = useRef(null);
 
   const borderColor = isConnectHoverTarget
     ? COLORS.success
     : selected ? COLORS.borderActive : COLORS.border;
+
+  const handleImgLoad = useCallback(() => {
+    setImgLoaded(true);
+    if (imgRef.current && onScreenDimensions) {
+      onScreenDimensions(screen.id, imgRef.current.naturalWidth, imgRef.current.offsetHeight);
+    }
+  }, [screen.id, onScreenDimensions]);
 
   return (
     <div
       onMouseDown={(e) => {
         if (e.target.closest(".hotspot-area") || e.target.closest(".screen-btn")) return;
         if (e.target.closest(".connection-dot-right")) return;
+        if (e.target.closest(".hotspot-drag-handle")) return;
         onSelect(screen.id);
         onDragStart(e, screen.id);
       }}
       onMouseUp={() => {
         if (isConnecting) onConnectTarget?.(screen.id);
+        if (isHotspotDragging) onConnectTarget?.(screen.id);
       }}
       onMouseEnter={() => {
         if (isConnecting) onHoverTarget?.(screen.id);
+        if (isHotspotDragging) onHoverTarget?.(screen.id);
       }}
       onMouseLeave={() => {
         if (isConnecting) onHoverTarget?.(null);
+        if (isHotspotDragging) onHoverTarget?.(null);
       }}
       style={{
         position: "absolute",
@@ -37,7 +51,7 @@ export function ScreenNode({
         background: COLORS.screenBg,
         border: `2px solid ${borderColor}`,
         borderRadius: 14,
-        cursor: isConnecting ? "default" : "grab",
+        cursor: isConnecting || isHotspotDragging ? "default" : "grab",
         boxShadow: isConnectHoverTarget
           ? `0 0 30px rgba(0,210,211,0.3), 0 8px 32px rgba(0,0,0,0.5)`
           : selected
@@ -113,13 +127,23 @@ export function ScreenNode({
       </div>
 
       {/* Image */}
-      <div style={{ position: "relative", minHeight: 120, background: "#0d0d15" }}>
+      <div
+        className="screen-image-area"
+        style={{ position: "relative", minHeight: 120, background: "#0d0d15" }}
+        onMouseDown={(e) => {
+          if (e.target.closest(".hotspot-area") || e.target.closest(".hotspot-drag-handle") || e.target.closest(".resize-handle")) return;
+          if (screen.imageData && onImageAreaMouseDown) {
+            onImageAreaMouseDown(e, screen.id);
+          }
+        }}
+      >
         {screen.imageData ? (
           <>
             <img
+              ref={imgRef}
               src={screen.imageData}
               alt={screen.name}
-              onLoad={() => setImgLoaded(true)}
+              onLoad={handleImgLoad}
               draggable={false}
               style={{
                 width: "100%",
@@ -128,34 +152,124 @@ export function ScreenNode({
                 transition: "opacity 0.3s",
               }}
             />
-            {(screen.hotspots || []).map((hs) => (
+            {(screen.hotspots || []).map((hs) => {
+              const isSelected = hs.id === selectedHotspotId;
+              return (
+                <div
+                  key={hs.id}
+                  className="hotspot-area"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    if (onHotspotMouseDown) onHotspotMouseDown(e, screen.id, hs.id);
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: `${hs.x}%`,
+                    top: `${hs.y}%`,
+                    width: `${hs.w}%`,
+                    height: `${hs.h}%`,
+                    background: isSelected
+                      ? "rgba(108,92,231,0.3)"
+                      : hs.targetScreenId ? "rgba(0,210,211,0.15)" : COLORS.hotspot,
+                    border: isSelected
+                      ? `2px solid ${COLORS.accent}`
+                      : `2px dashed ${hs.targetScreenId ? COLORS.success : COLORS.hotspotBorder}`,
+                    borderRadius: 6,
+                    cursor: isSelected ? "grab" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 9,
+                    color: isSelected ? COLORS.accent : hs.targetScreenId ? COLORS.success : COLORS.accentLight,
+                    fontFamily: FONTS.mono,
+                    fontWeight: 600,
+                    textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+                    boxShadow: isSelected ? `0 0 12px ${COLORS.accentGlow}` : "none",
+                  }}
+                  title={hs.label || "Tap area"}
+                >
+                  {hs.label || "TAP"}
+                  {/* Drag handle for hotspot-to-screen connect */}
+                  {isSelected && (
+                    <div
+                      className="hotspot-drag-handle"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        if (onHotspotDragHandleMouseDown) {
+                          onHotspotDragHandleMouseDown(e, screen.id, hs.id);
+                        }
+                      }}
+                      style={{
+                        position: "absolute",
+                        right: -6,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 12,
+                        height: 12,
+                        borderRadius: "50%",
+                        background: COLORS.success,
+                        border: `2px solid ${COLORS.surface}`,
+                        boxShadow: `0 0 8px rgba(0,210,211,0.5)`,
+                        cursor: "crosshair",
+                        zIndex: 2,
+                      }}
+                      title="Drag to connect to another screen"
+                    />
+                  )}
+                  {/* Resize handles */}
+                  {isSelected && ["nw","n","ne","e","se","s","sw","w"].map((handle) => {
+                    const pos = {
+                      nw: { left: -4, top: -4, cursor: "nwse-resize" },
+                      n:  { left: "50%", top: -4, cursor: "ns-resize", transform: "translateX(-50%)" },
+                      ne: { right: -4, top: -4, cursor: "nesw-resize" },
+                      e:  { right: -4, top: "50%", cursor: "ew-resize", transform: "translateY(-50%)" },
+                      se: { right: -4, bottom: -4, cursor: "nwse-resize" },
+                      s:  { left: "50%", bottom: -4, cursor: "ns-resize", transform: "translateX(-50%)" },
+                      sw: { left: -4, bottom: -4, cursor: "nesw-resize" },
+                      w:  { left: -4, top: "50%", cursor: "ew-resize", transform: "translateY(-50%)" },
+                    }[handle];
+                    return (
+                      <div
+                        key={handle}
+                        className="resize-handle"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          if (onResizeHandleMouseDown) {
+                            onResizeHandleMouseDown(e, screen.id, hs.id, handle);
+                          }
+                        }}
+                        style={{
+                          position: "absolute",
+                          width: 8,
+                          height: 8,
+                          background: COLORS.accent,
+                          border: `1px solid ${COLORS.surface}`,
+                          borderRadius: 2,
+                          zIndex: 3,
+                          ...pos,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })}
+            {/* Draw rectangle preview */}
+            {drawRect && drawRect.screenId === screen.id && (
               <div
-                key={hs.id}
-                className="hotspot-area"
                 style={{
                   position: "absolute",
-                  left: `${hs.x}%`,
-                  top: `${hs.y}%`,
-                  width: `${hs.w}%`,
-                  height: `${hs.h}%`,
-                  background: hs.targetScreenId ? "rgba(0,210,211,0.15)" : COLORS.hotspot,
-                  border: `2px dashed ${hs.targetScreenId ? COLORS.success : COLORS.hotspotBorder}`,
+                  left: `${drawRect.x}%`,
+                  top: `${drawRect.y}%`,
+                  width: `${drawRect.w}%`,
+                  height: `${drawRect.h}%`,
+                  background: "rgba(108,92,231,0.2)",
+                  border: `2px dashed ${COLORS.accent}`,
                   borderRadius: 6,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 9,
-                  color: hs.targetScreenId ? COLORS.success : COLORS.accentLight,
-                  fontFamily: FONTS.mono,
-                  fontWeight: 600,
-                  textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+                  pointerEvents: "none",
                 }}
-                title={hs.label || "Tap area"}
-              >
-                {hs.label || "TAP"}
-              </div>
-            ))}
+              />
+            )}
           </>
         ) : (
           <div

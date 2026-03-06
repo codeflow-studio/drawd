@@ -2,14 +2,14 @@ import { useState } from "react";
 import { COLORS, styles } from "../styles/theme";
 import { generateId } from "../utils/generateId";
 
-export function HotspotModal({ screen, hotspot, screens, prefilledTarget, onSave, onDelete, onClose }) {
+export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefilledRect, onSave, onDelete, onClose }) {
   const [label, setLabel] = useState(hotspot?.label || "");
   const [targetId, setTargetId] = useState(hotspot?.targetScreenId || prefilledTarget || "");
   const [action, setAction] = useState(hotspot?.action || "navigate");
-  const [x, setX] = useState(hotspot?.x ?? 10);
-  const [y, setY] = useState(hotspot?.y ?? 10);
-  const [w, setW] = useState(hotspot?.w ?? 80);
-  const [h, setH] = useState(hotspot?.h ?? 15);
+  const [x, setX] = useState(hotspot?.x ?? prefilledRect?.x ?? 10);
+  const [y, setY] = useState(hotspot?.y ?? prefilledRect?.y ?? 10);
+  const [w, setW] = useState(hotspot?.w ?? prefilledRect?.w ?? 80);
+  const [h, setH] = useState(hotspot?.h ?? prefilledRect?.h ?? 15);
 
   const otherScreens = screens.filter((s) => s.id !== screen.id);
 

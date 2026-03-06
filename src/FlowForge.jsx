@@ -16,13 +16,16 @@ import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { EmptyState } from "./components/EmptyState";
 
+const HEADER_HEIGHT = 37;
+
 export default function FlowForge() {
   const { pan, setPan, zoom, setZoom, isPanning, canvasRef, handleDragStart, handleMouseMove, handleMouseUp, handleCanvasMouseDown } = useCanvas();
   const {
     screens, connections, selectedScreen, setSelectedScreen,
     fileInputRef, addScreen, removeScreen, renameScreen, moveScreen,
     handleImageUpload, onFileChange, handlePaste, handleCanvasDrop,
-    saveHotspot, deleteHotspot, replaceAll, mergeAll,
+    saveHotspot, deleteHotspot, moveHotspot, resizeHotspot, updateScreenDimensions,
+    quickConnectHotspot, replaceAll, mergeAll,
   } = useScreenManager(pan, zoom);
 
   const [hotspotModal, setHotspotModal] = useState(null);
@@ -32,12 +35,20 @@ export default function FlowForge() {
   const [importConfirm, setImportConfirm] = useState(null);
   const importFileRef = useRef(null);
 
-  // Drag-to-connect state
+  // Drag-to-connect state (right dot)
   const [connecting, setConnecting] = useState(null);
   const [hoverTarget, setHoverTarget] = useState(null);
 
+  // Hotspot interaction state
+  const [hotspotInteraction, setHotspotInteraction] = useState(null);
+
   const cancelConnecting = useCallback(() => {
     setConnecting(null);
+    setHoverTarget(null);
+  }, []);
+
+  const cancelHotspotInteraction = useCallback(() => {
+    setHotspotInteraction(null);
     setHoverTarget(null);
   }, []);
 
@@ -58,6 +69,20 @@ export default function FlowForge() {
   }, [screens]);
 
   const onConnectComplete = useCallback((targetScreenId) => {
+    // Handle hotspot-drag connect
+    if (hotspotInteraction?.mode === "hotspot-drag") {
+      if (targetScreenId !== hotspotInteraction.screenId) {
+        quickConnectHotspot(hotspotInteraction.screenId, hotspotInteraction.hotspotId, targetScreenId);
+      }
+      setHotspotInteraction({
+        mode: "selected",
+        screenId: hotspotInteraction.screenId,
+        hotspotId: hotspotInteraction.hotspotId,
+      });
+      setHoverTarget(null);
+      return;
+    }
+
     if (!connecting) return;
     if (targetScreenId === connecting.fromScreenId) {
       cancelConnecting();
@@ -66,20 +91,213 @@ export default function FlowForge() {
     const screen = screens.find((s) => s.id === connecting.fromScreenId);
     setHotspotModal({ screen, hotspot: null, prefilledTarget: targetScreenId });
     cancelConnecting();
-  }, [connecting, screens, cancelConnecting]);
+  }, [connecting, screens, cancelConnecting, hotspotInteraction, quickConnectHotspot]);
+
+  // Hotspot mouse down: select or begin reposition
+  const onHotspotMouseDown = useCallback((e, screenId, hotspotId) => {
+    e.preventDefault();
+    if (hotspotInteraction?.mode === "selected" && hotspotInteraction.hotspotId === hotspotId) {
+      // Same hotspot selected again -> begin reposition
+      const rect = canvasRef.current.getBoundingClientRect();
+      const screen = screens.find((s) => s.id === screenId);
+      const hs = screen?.hotspots.find((h) => h.id === hotspotId);
+      if (!screen || !hs) return;
+      setHotspotInteraction({
+        mode: "reposition",
+        screenId,
+        hotspotId,
+        offsetPct: { dx: 0, dy: 0 },
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startX: hs.x,
+        startY: hs.y,
+      });
+    } else {
+      // Select this hotspot
+      setHotspotInteraction({ mode: "selected", screenId, hotspotId });
+    }
+  }, [hotspotInteraction, canvasRef, screens]);
+
+  // Image area mouse down: begin draw
+  const onImageAreaMouseDown = useCallback((e, screenId) => {
+    if (hotspotInteraction?.mode === "selected") {
+      // Clicking image area deselects hotspot
+      setHotspotInteraction(null);
+      return;
+    }
+    if (connecting) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const screen = screens.find((s) => s.id === screenId);
+    if (!screen?.imageData || !screen.imageHeight) return;
+
+    setHotspotInteraction({
+      mode: "draw",
+      screenId,
+      drawStart: { clientX: e.clientX, clientY: e.clientY },
+      drawRect: null,
+    });
+  }, [hotspotInteraction, connecting, screens]);
+
+  // Resize handle mouse down
+  const onResizeHandleMouseDown = useCallback((e, screenId, hotspotId, handle) => {
+    e.preventDefault();
+    const screen = screens.find((s) => s.id === screenId);
+    const hs = screen?.hotspots.find((h) => h.id === hotspotId);
+    if (!screen || !hs) return;
+    setHotspotInteraction({
+      mode: "resize",
+      screenId,
+      hotspotId,
+      handle,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startRect: { x: hs.x, y: hs.y, w: hs.w, h: hs.h },
+    });
+  }, [screens]);
+
+  // Hotspot drag handle mouse down
+  const onHotspotDragHandleMouseDown = useCallback((e, screenId, hotspotId) => {
+    e.preventDefault();
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left - pan.x) / zoom;
+    const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+    setHotspotInteraction({
+      mode: "hotspot-drag",
+      screenId,
+      hotspotId,
+      mouseX,
+      mouseY,
+    });
+  }, [canvasRef, pan, zoom]);
+
+  const onScreenDimensions = useCallback((screenId, imageWidth, imageHeight) => {
+    updateScreenDimensions(screenId, imageWidth, imageHeight);
+  }, [updateScreenDimensions]);
 
   const onCanvasMouseDown = useCallback((e) => {
+    // Cancel hotspot interaction on canvas click
+    if (hotspotInteraction && hotspotInteraction.mode !== "draw" && hotspotInteraction.mode !== "reposition" && hotspotInteraction.mode !== "hotspot-drag" && hotspotInteraction.mode !== "resize") {
+      setHotspotInteraction(null);
+    }
     if (connecting) {
       if (connecting.mode === "click") {
         cancelConnecting();
       }
       return;
     }
+    if (hotspotInteraction?.mode === "draw" || hotspotInteraction?.mode === "reposition" || hotspotInteraction?.mode === "hotspot-drag" || hotspotInteraction?.mode === "resize") {
+      return;
+    }
     const wasPan = handleCanvasMouseDown(e);
     if (wasPan) setSelectedScreen(null);
-  }, [handleCanvasMouseDown, setSelectedScreen, connecting, cancelConnecting]);
+  }, [handleCanvasMouseDown, setSelectedScreen, connecting, cancelConnecting, hotspotInteraction]);
 
   const onCanvasMouseMove = useCallback((e) => {
+    // Handle hotspot interactions
+    if (hotspotInteraction?.mode === "draw") {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const screen = screens.find((s) => s.id === hotspotInteraction.screenId);
+      if (!screen || !screen.imageHeight) return;
+
+      const screenW = screen.width || 220;
+      const toCanvasX = (clientX) => (clientX - rect.left - pan.x) / zoom;
+      const toCanvasY = (clientY) => (clientY - rect.top - pan.y) / zoom;
+
+      const startImgX = toCanvasX(hotspotInteraction.drawStart.clientX) - screen.x;
+      const startImgY = toCanvasY(hotspotInteraction.drawStart.clientY) - screen.y - HEADER_HEIGHT;
+      const curImgX = toCanvasX(e.clientX) - screen.x;
+      const curImgY = toCanvasY(e.clientY) - screen.y - HEADER_HEIGHT;
+
+      const startPctX = (startImgX / screenW) * 100;
+      const startPctY = (startImgY / screen.imageHeight) * 100;
+      const curPctX = (curImgX / screenW) * 100;
+      const curPctY = (curImgY / screen.imageHeight) * 100;
+
+      const x = Math.max(0, Math.min(100, Math.min(startPctX, curPctX)));
+      const y = Math.max(0, Math.min(100, Math.min(startPctY, curPctY)));
+      const x2 = Math.max(0, Math.min(100, Math.max(startPctX, curPctX)));
+      const y2 = Math.max(0, Math.min(100, Math.max(startPctY, curPctY)));
+
+      setHotspotInteraction((prev) => ({
+        ...prev,
+        drawRect: {
+          screenId: screen.id,
+          x: Math.round(x * 10) / 10,
+          y: Math.round(y * 10) / 10,
+          w: Math.round((x2 - x) * 10) / 10,
+          h: Math.round((y2 - y) * 10) / 10,
+        },
+      }));
+      return;
+    }
+
+    if (hotspotInteraction?.mode === "reposition") {
+      const screen = screens.find((s) => s.id === hotspotInteraction.screenId);
+      if (!screen || !screen.imageHeight) return;
+      const screenW = screen.width || 220;
+      const hs = screen.hotspots.find((h) => h.id === hotspotInteraction.hotspotId);
+      if (!hs) return;
+
+      const dxPx = (e.clientX - hotspotInteraction.startClientX) / zoom;
+      const dyPx = (e.clientY - hotspotInteraction.startClientY) / zoom;
+      const dxPct = (dxPx / screenW) * 100;
+      const dyPct = (dyPx / screen.imageHeight) * 100;
+
+      let newX = hotspotInteraction.startX + dxPct;
+      let newY = hotspotInteraction.startY + dyPct;
+      newX = Math.max(0, Math.min(100 - hs.w, newX));
+      newY = Math.max(0, Math.min(100 - hs.h, newY));
+
+      moveHotspot(hotspotInteraction.screenId, hotspotInteraction.hotspotId, Math.round(newX * 10) / 10, Math.round(newY * 10) / 10);
+      return;
+    }
+
+    if (hotspotInteraction?.mode === "resize") {
+      const screen = screens.find((s) => s.id === hotspotInteraction.screenId);
+      if (!screen || !screen.imageHeight) return;
+      const screenW = screen.width || 220;
+      const { handle, startClientX, startClientY, startRect } = hotspotInteraction;
+
+      const dxPct = ((e.clientX - startClientX) / zoom / screenW) * 100;
+      const dyPct = ((e.clientY - startClientY) / zoom / screen.imageHeight) * 100;
+
+      let { x, y, w, h } = startRect;
+      const MIN = 2;
+
+      if (handle.includes("e")) {
+        w = Math.max(MIN, Math.min(100 - x, startRect.w + dxPct));
+      }
+      if (handle.includes("w")) {
+        const dx = Math.min(dxPct, startRect.w - MIN);
+        const clampedDx = Math.max(-startRect.x, dx);
+        x = startRect.x + clampedDx;
+        w = startRect.w - clampedDx;
+      }
+      if (handle.includes("s")) {
+        h = Math.max(MIN, Math.min(100 - y, startRect.h + dyPct));
+      }
+      if (handle.includes("n")) {
+        const dy = Math.min(dyPct, startRect.h - MIN);
+        const clampedDy = Math.max(-startRect.y, dy);
+        y = startRect.y + clampedDy;
+        h = startRect.h - clampedDy;
+      }
+
+      const round = (v) => Math.round(v * 10) / 10;
+      resizeHotspot(hotspotInteraction.screenId, hotspotInteraction.hotspotId, round(x), round(y), round(w), round(h));
+      return;
+    }
+
+    if (hotspotInteraction?.mode === "hotspot-drag") {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left - pan.x) / zoom;
+      const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+      setHotspotInteraction((prev) => ({ ...prev, mouseX, mouseY }));
+      return;
+    }
+
     if (connecting) {
       const rect = canvasRef.current.getBoundingClientRect();
       const mouseX = (e.clientX - rect.left - pan.x) / zoom;
@@ -91,23 +309,88 @@ export default function FlowForge() {
     if (result?.type === "drag") {
       moveScreen(result.id, result.x, result.y);
     }
-  }, [handleMouseMove, moveScreen, connecting, canvasRef, pan, zoom]);
+  }, [handleMouseMove, moveScreen, connecting, canvasRef, pan, zoom, hotspotInteraction, screens, moveHotspot, resizeHotspot]);
 
   const onCanvasMouseUp = useCallback((e) => {
+    // Handle draw completion
+    if (hotspotInteraction?.mode === "draw") {
+      const dr = hotspotInteraction.drawRect;
+      if (dr && dr.w >= 2 && dr.h >= 2) {
+        const screen = screens.find((s) => s.id === hotspotInteraction.screenId);
+        if (screen) {
+          setHotspotModal({
+            screen,
+            hotspot: null,
+            prefilledRect: { x: dr.x, y: dr.y, w: dr.w, h: dr.h },
+          });
+        }
+      }
+      setHotspotInteraction(null);
+      return;
+    }
+
+    // Handle resize completion
+    if (hotspotInteraction?.mode === "resize") {
+      setHotspotInteraction({
+        mode: "selected",
+        screenId: hotspotInteraction.screenId,
+        hotspotId: hotspotInteraction.hotspotId,
+      });
+      return;
+    }
+
+    // Handle reposition completion
+    if (hotspotInteraction?.mode === "reposition") {
+      setHotspotInteraction({
+        mode: "selected",
+        screenId: hotspotInteraction.screenId,
+        hotspotId: hotspotInteraction.hotspotId,
+      });
+      return;
+    }
+
+    // Handle hotspot-drag completion (drop on empty canvas)
+    if (hotspotInteraction?.mode === "hotspot-drag") {
+      setHotspotInteraction({
+        mode: "selected",
+        screenId: hotspotInteraction.screenId,
+        hotspotId: hotspotInteraction.hotspotId,
+      });
+      setHoverTarget(null);
+      return;
+    }
+
     if (connecting) {
       cancelConnecting();
       return;
     }
     handleMouseUp(e);
-  }, [connecting, cancelConnecting, handleMouseUp]);
+  }, [connecting, cancelConnecting, handleMouseUp, hotspotInteraction, screens]);
 
   const onCanvasMouseLeave = useCallback((e) => {
+    if (hotspotInteraction?.mode === "draw" || hotspotInteraction?.mode === "reposition" || hotspotInteraction?.mode === "resize") {
+      setHotspotInteraction({
+        mode: "selected",
+        screenId: hotspotInteraction.screenId,
+        hotspotId: hotspotInteraction.hotspotId,
+      });
+      return;
+    }
+    if (hotspotInteraction?.mode === "hotspot-drag") {
+      setHotspotInteraction({
+        mode: "selected",
+        screenId: hotspotInteraction.screenId,
+        hotspotId: hotspotInteraction.hotspotId,
+      });
+      setHoverTarget(null);
+      return;
+    }
     if (connecting) {
       cancelConnecting();
       return;
     }
     handleMouseUp(e);
-  }, [connecting, cancelConnecting, handleMouseUp]);
+  }, [connecting, cancelConnecting, handleMouseUp, hotspotInteraction]);
 
   const onDragStart = useCallback((e, screenId) => {
     handleDragStart(e, screenId, screens);
@@ -171,16 +454,17 @@ export default function FlowForge() {
     setShowInstructions(true);
   }, [screens, connections]);
 
-  // Escape key cancels connecting
+  // Escape key cancels connecting and hotspot interactions
   useEffect(() => {
     const onKeyDown = (e) => {
-      if (e.key === "Escape" && connecting) {
-        cancelConnecting();
+      if (e.key === "Escape") {
+        if (connecting) cancelConnecting();
+        if (hotspotInteraction) cancelHotspotInteraction();
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [connecting, cancelConnecting]);
+  }, [connecting, cancelConnecting, hotspotInteraction, cancelHotspotInteraction]);
 
   useEffect(() => {
     const onPaste = (e) => {
@@ -198,9 +482,30 @@ export default function FlowForge() {
     ? { fromScreenId: connecting.fromScreenId, toX: connecting.mouseX, toY: connecting.mouseY }
     : null;
 
-  const canvasCursor = connecting
+  const hotspotPreviewLine = hotspotInteraction?.mode === "hotspot-drag"
+    ? {
+        fromScreenId: hotspotInteraction.screenId,
+        hotspotId: hotspotInteraction.hotspotId,
+        toX: hotspotInteraction.mouseX,
+        toY: hotspotInteraction.mouseY,
+      }
+    : null;
+
+  const isHotspotDragging = hotspotInteraction?.mode === "hotspot-drag";
+
+  const resizeCursors = { nw: "nwse-resize", n: "ns-resize", ne: "nesw-resize", e: "ew-resize", se: "nwse-resize", s: "ns-resize", sw: "nesw-resize", w: "ew-resize" };
+  const canvasCursor = connecting || isHotspotDragging
     ? "crosshair"
-    : isPanning ? "grabbing" : "default";
+    : hotspotInteraction?.mode === "draw"
+      ? "crosshair"
+      : hotspotInteraction?.mode === "resize"
+        ? (resizeCursors[hotspotInteraction.handle] || "default")
+        : hotspotInteraction?.mode === "reposition"
+          ? "grabbing"
+          : isPanning ? "grabbing" : "default";
+
+  const selectedHotspotId = hotspotInteraction?.hotspotId || null;
+  const drawRect = hotspotInteraction?.mode === "draw" ? hotspotInteraction.drawRect : null;
 
   return (
     <div
@@ -257,7 +562,6 @@ export default function FlowForge() {
               transformOrigin: "0 0",
             }}
           >
-            <ConnectionLines screens={screens} connections={connections} previewLine={previewLine} />
             {screens.map((screen) => (
               <ScreenNode
                 key={screen.id}
@@ -272,8 +576,22 @@ export default function FlowForge() {
                 onHoverTarget={setHoverTarget}
                 isConnectHoverTarget={hoverTarget === screen.id}
                 isConnecting={!!connecting}
+                selectedHotspotId={hotspotInteraction?.screenId === screen.id ? selectedHotspotId : null}
+                onHotspotMouseDown={onHotspotMouseDown}
+                onImageAreaMouseDown={onImageAreaMouseDown}
+                onHotspotDragHandleMouseDown={onHotspotDragHandleMouseDown}
+                onResizeHandleMouseDown={onResizeHandleMouseDown}
+                onScreenDimensions={onScreenDimensions}
+                drawRect={drawRect}
+                isHotspotDragging={isHotspotDragging}
               />
             ))}
+            <ConnectionLines
+              screens={screens}
+              connections={connections}
+              previewLine={previewLine}
+              hotspotPreviewLine={hotspotPreviewLine}
+            />
           </div>
 
           {screens.length === 0 && <EmptyState />}
@@ -333,6 +651,7 @@ export default function FlowForge() {
           hotspot={hotspotModal.hotspot}
           screens={screens}
           prefilledTarget={hotspotModal.prefilledTarget || null}
+          prefilledRect={hotspotModal.prefilledRect || null}
           onSave={(hs) => { saveHotspot(hotspotModal.screen.id, hs); setHotspotModal(null); }}
           onDelete={(id) => { deleteHotspot(hotspotModal.screen.id, id); setHotspotModal(null); }}
           onClose={() => setHotspotModal(null)}

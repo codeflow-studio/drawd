@@ -137,6 +137,74 @@ export function useScreenManager(pan, zoom) {
     setConnections((prev) => prev.filter((c) => c.hotspotId !== hotspotId));
   }, []);
 
+  const moveHotspot = useCallback((screenId, hotspotId, newX, newY) => {
+    setScreens((prev) =>
+      prev.map((s) => {
+        if (s.id !== screenId) return s;
+        return {
+          ...s,
+          hotspots: s.hotspots.map((h) =>
+            h.id === hotspotId ? { ...h, x: newX, y: newY } : h
+          ),
+        };
+      })
+    );
+  }, []);
+
+  const resizeHotspot = useCallback((screenId, hotspotId, newX, newY, newW, newH) => {
+    setScreens((prev) =>
+      prev.map((s) => {
+        if (s.id !== screenId) return s;
+        return {
+          ...s,
+          hotspots: s.hotspots.map((h) =>
+            h.id === hotspotId ? { ...h, x: newX, y: newY, w: newW, h: newH } : h
+          ),
+        };
+      })
+    );
+  }, []);
+
+  const updateScreenDimensions = useCallback((screenId, imageWidth, imageHeight) => {
+    setScreens((prev) =>
+      prev.map((s) =>
+        s.id === screenId ? { ...s, imageWidth, imageHeight } : s
+      )
+    );
+  }, []);
+
+  const quickConnectHotspot = useCallback((screenId, hotspotId, targetScreenId) => {
+    setScreens((prev) =>
+      prev.map((s) => {
+        if (s.id !== screenId) return s;
+        return {
+          ...s,
+          hotspots: s.hotspots.map((h) =>
+            h.id === hotspotId
+              ? { ...h, action: "navigate", targetScreenId }
+              : h
+          ),
+        };
+      })
+    );
+    setConnections((prev) => {
+      const filtered = prev.filter(
+        (c) => !(c.fromScreenId === screenId && c.hotspotId === hotspotId)
+      );
+      return [
+        ...filtered,
+        {
+          id: generateId(),
+          fromScreenId: screenId,
+          toScreenId: targetScreenId,
+          hotspotId,
+          label: "",
+          action: "navigate",
+        },
+      ];
+    });
+  }, []);
+
   const replaceAll = useCallback((newScreens, newConnections, newScreenCounter) => {
     setScreens(newScreens);
     setConnections(newConnections);
@@ -165,6 +233,10 @@ export function useScreenManager(pan, zoom) {
     handleCanvasDrop,
     saveHotspot,
     deleteHotspot,
+    moveHotspot,
+    resizeHotspot,
+    updateScreenDimensions,
+    quickConnectHotspot,
     replaceAll,
     mergeAll,
   };

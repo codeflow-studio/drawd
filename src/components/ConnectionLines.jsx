@@ -1,6 +1,9 @@
 import { COLORS, FONTS } from "../styles/theme";
 
-export function ConnectionLines({ screens, connections, previewLine }) {
+const HEADER_HEIGHT = 37;
+const BORDER = 2;
+
+export function ConnectionLines({ screens, connections, previewLine, hotspotPreviewLine }) {
   return (
     <svg
       style={{
@@ -30,8 +33,19 @@ export function ConnectionLines({ screens, connections, previewLine }) {
         const to = screens.find((s) => s.id === conn.toScreenId);
         if (!from || !to) return null;
 
-        const fromX = from.x + (from.width || 220);
-        const fromY = from.y + 100;
+        const screenW = from.width || 220;
+        const hs = conn.hotspotId && from.hotspots
+          ? from.hotspots.find((h) => h.id === conn.hotspotId)
+          : null;
+
+        let fromX, fromY;
+        if (hs && from.imageHeight) {
+          fromX = from.x + BORDER + (hs.x + hs.w / 2) / 100 * screenW;
+          fromY = from.y + BORDER + HEADER_HEIGHT + (hs.y + hs.h / 2) / 100 * from.imageHeight;
+        } else {
+          fromX = from.x + screenW;
+          fromY = from.y + 100;
+        }
         const toX = to.x;
         const toY = to.y + 100;
 
@@ -40,6 +54,14 @@ export function ConnectionLines({ screens, connections, previewLine }) {
 
         return (
           <g key={conn.id}>
+            <circle
+              cx={fromX}
+              cy={fromY}
+              r={5}
+              fill={COLORS.connectionLine}
+              filter="url(#glow)"
+              opacity={0.9}
+            />
             <path
               d={`M ${fromX} ${fromY} C ${fromX + cp} ${fromY}, ${toX - cp} ${toY}, ${toX} ${toY}`}
               fill="none"
@@ -66,6 +88,40 @@ export function ConnectionLines({ screens, connections, previewLine }) {
           </g>
         );
       })}
+      {hotspotPreviewLine && (() => {
+        const from = screens.find((s) => s.id === hotspotPreviewLine.fromScreenId);
+        if (!from) return null;
+        const hs = hotspotPreviewLine.hotspotId && from.hotspots
+          ? from.hotspots.find((h) => h.id === hotspotPreviewLine.hotspotId)
+          : null;
+        const screenW = from.width || 220;
+        let fromX, fromY;
+        if (hs && from.imageHeight) {
+          fromX = from.x + BORDER + (hs.x + hs.w / 2) / 100 * screenW;
+          fromY = from.y + BORDER + HEADER_HEIGHT + (hs.y + hs.h / 2) / 100 * from.imageHeight;
+        } else {
+          fromX = from.x + screenW;
+          fromY = from.y + 100;
+        }
+        const toX = hotspotPreviewLine.toX;
+        const toY = hotspotPreviewLine.toY;
+        const dx = toX - fromX;
+        const cp = Math.max(80, Math.abs(dx) * 0.4);
+        return (
+          <g>
+            <circle cx={fromX} cy={fromY} r={5} fill={COLORS.success} opacity={0.8} />
+            <path
+              d={`M ${fromX} ${fromY} C ${fromX + cp} ${fromY}, ${toX - cp} ${toY}, ${toX} ${toY}`}
+              fill="none"
+              stroke={COLORS.success}
+              strokeWidth={2.5}
+              strokeDasharray="8 4"
+              markerEnd="url(#arrowhead)"
+              opacity={0.6}
+            />
+          </g>
+        );
+      })()}
       {previewLine && (() => {
         const from = screens.find((s) => s.id === previewLine.fromScreenId);
         if (!from) return null;
@@ -76,15 +132,18 @@ export function ConnectionLines({ screens, connections, previewLine }) {
         const dx = toX - fromX;
         const cp = Math.max(80, Math.abs(dx) * 0.4);
         return (
-          <path
-            d={`M ${fromX} ${fromY} C ${fromX + cp} ${fromY}, ${toX - cp} ${toY}, ${toX} ${toY}`}
-            fill="none"
-            stroke={COLORS.connectionLine}
-            strokeWidth={2.5}
-            strokeDasharray="8 4"
-            markerEnd="url(#arrowhead)"
-            opacity={0.4}
-          />
+          <g>
+            <circle cx={fromX} cy={fromY} r={5} fill={COLORS.connectionLine} opacity={0.6} />
+            <path
+              d={`M ${fromX} ${fromY} C ${fromX + cp} ${fromY}, ${toX - cp} ${toY}, ${toX} ${toY}`}
+              fill="none"
+              stroke={COLORS.connectionLine}
+              strokeWidth={2.5}
+              strokeDasharray="8 4"
+              markerEnd="url(#arrowhead)"
+              opacity={0.4}
+            />
+          </g>
         );
       })()}
     </svg>
