@@ -1,16 +1,7 @@
+import { buildPayload } from "./buildPayload";
+
 export function exportFlow(screens, connections, pan, zoom) {
-  const payload = {
-    version: 4,
-    metadata: {
-      name: "Untitled Flow",
-      exportedAt: new Date().toISOString(),
-      screenCount: screens.length,
-      connectionCount: connections.length,
-    },
-    viewport: { pan: { x: pan.x, y: pan.y }, zoom },
-    screens,
-    connections,
-  };
+  const payload = buildPayload(screens, connections, pan, zoom);
 
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: "application/json" });

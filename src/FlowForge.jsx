@@ -6,6 +6,7 @@ import { importFlow } from "./utils/importFlow";
 import { mergeFlow } from "./utils/mergeFlow";
 import { useCanvas } from "./hooks/useCanvas";
 import { useScreenManager } from "./hooks/useScreenManager";
+import { useFilePersistence } from "./hooks/useFilePersistence";
 import { ScreenNode } from "./components/ScreenNode";
 import { ConnectionLines } from "./components/ConnectionLines";
 import { HotspotModal } from "./components/HotspotModal";
@@ -29,6 +30,33 @@ export default function FlowForge() {
     addConnection, addState, updateStateName, replaceAll, mergeAll,
     canUndo, canRedo, undo, redo, captureDragSnapshot, commitDragSnapshot,
   } = useScreenManager(pan, zoom, canvasRef);
+
+  const {
+    connectedFileName, saveStatus, isFileSystemSupported,
+    openFile, saveAs, saveNow, disconnect,
+  } = useFilePersistence(screens, connections, pan, zoom);
+
+  const onOpen = useCallback(async () => {
+    try {
+      const payload = await openFile();
+      if (!payload) return;
+      replaceAll(payload.screens, payload.connections, payload.screens.length + 1);
+      if (payload.viewport) {
+        setPan(payload.viewport.pan);
+        setZoom(payload.viewport.zoom);
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  }, [openFile, replaceAll, setPan, setZoom]);
+
+  const onSaveAs = useCallback(async () => {
+    try {
+      await saveAs();
+    } catch (err) {
+      alert("Save failed: " + err.message);
+    }
+  }, [saveAs]);
 
   const [hotspotModal, setHotspotModal] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -574,6 +602,24 @@ export default function FlowForge() {
           removeScreen(selectedScreen);
         }
       }
+      // Save shortcut (Cmd+S)
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        saveNow().then((saved) => {
+          if (!saved && isFileSystemSupported) {
+            onSaveAs();
+          } else if (!saved) {
+            onExport();
+          }
+        });
+        return;
+      }
+      // Open shortcut (Cmd+O)
+      if ((e.metaKey || e.ctrlKey) && e.key === "o" && isFileSystemSupported) {
+        e.preventDefault();
+        onOpen();
+        return;
+      }
       // Undo/Redo shortcuts
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
         const tag = document.activeElement?.tagName;
@@ -592,7 +638,7 @@ export default function FlowForge() {
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [connecting, cancelConnecting, hotspotInteraction, cancelHotspotInteraction, selectedConnection, deleteConnection, selectedScreen, removeScreen, hotspotModal, renameModal, importConfirm, showInstructions, undo, redo]);
+  }, [connecting, cancelConnecting, hotspotInteraction, cancelHotspotInteraction, selectedConnection, deleteConnection, selectedScreen, removeScreen, hotspotModal, renameModal, importConfirm, showInstructions, undo, redo, saveNow, isFileSystemSupported, onSaveAs, onExport, onOpen]);
 
   useEffect(() => {
     const onPaste = (e) => {
@@ -673,6 +719,11 @@ export default function FlowForge() {
         canRedo={canRedo}
         onUndo={undo}
         onRedo={redo}
+        connectedFileName={connectedFileName}
+        saveStatus={saveStatus}
+        isFileSystemSupported={isFileSystemSupported}
+        onOpen={onOpen}
+        onSaveAs={onSaveAs}
       />
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>

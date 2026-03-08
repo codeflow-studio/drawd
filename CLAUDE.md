@@ -27,6 +27,7 @@ src/
   hooks/
     useCanvas.js            — Pan, zoom, and drag logic
     useScreenManager.js     — Screen/connection/hotspot CRUD state
+    useFilePersistence.js   — Auto-save to connected .flowforge file via File System Access API
   styles/
     theme.js                — COLORS, FONTS, FONT_LINK, shared style objects
   utils/
@@ -35,6 +36,7 @@ src/
     generateInstructionFiles.js — Multi-file AI instruction generator (main.md, screens.md, navigation.md, build-guide.md)
     analyzeNavGraph.js      — Navigation graph analysis (entry points, tab bars, modals, back loops)
     zipBuilder.js           — Zero-dependency browser-native ZIP file creator (STORE compression)
+    buildPayload.js         — Pure function to construct .flowforge JSON payload (used by export and auto-save)
     exportFlow.js           — Export screens/connections as .flowforge JSON file
     importFlow.js           — Parse and validate .flowforge JSON files (v1, v2, v3, and v4)
     mergeFlow.js            — Remap IDs and offset positions for merge imports
@@ -119,6 +121,18 @@ Colors and shared styles are in `src/styles/theme.js`:
 - **Not undoable**: `updateScreenDimensions` (layout-only, triggered by image load).
 - **Keyboard shortcuts**: `Cmd/Ctrl+Z` for undo, `Cmd/Ctrl+Shift+Z` for redo. Guarded: skipped when focus is in input/textarea or any modal is open.
 - **UI**: Undo/redo buttons in `TopBar` between stats and "Upload Screens" button.
+
+### File Persistence (Auto-Save)
+
+- **File System Access API**: Uses `showOpenFilePicker`/`showSaveFilePicker` to obtain a `FileSystemFileHandle` for silent read/write to a local `.flowforge` file. Chromium-only (Chrome/Edge); gracefully hidden in other browsers.
+- **Auto-save**: `useFilePersistence` hook watches `screens` and `connections` via `useEffect`. When a connected file handle exists, changes are debounced at 1500ms and written to disk automatically.
+- **FileHandle in useRef**: The `FileSystemFileHandle` is not serializable and must never enter the undo/redo JSON clone pipeline, so it's stored in a `useRef`.
+- **Pan/zoom in refs**: Viewport changes do NOT trigger auto-save; only screen/connection mutations do.
+- **skipNextSaveRef**: Prevents a redundant save immediately after opening a file (since `replaceAll` triggers the `useEffect`).
+- **Open replaces canvas**: Opening a file always replaces current state. Import remains available for merging.
+- **Keyboard shortcuts**: `Cmd/Ctrl+S` saves immediately (or opens Save As picker if no file connected, or falls back to Export download); `Cmd/Ctrl+O` opens a file.
+- **UI**: "Open" and "Save As" buttons in TopBar (Chromium only). Connected filename shown as a badge with a save status dot (yellow pulse = saving, green = saved, red = error).
+- **buildPayload.js**: Pure function extracted from `exportFlow.js` to construct the `.flowforge` JSON payload, reused by both export and auto-save.
 
 ### AI Instruction Generation
 

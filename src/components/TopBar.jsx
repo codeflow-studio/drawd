@@ -1,7 +1,13 @@
 import { COLORS, FONTS } from "../styles/theme";
 
-export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onExport, onImport, onGenerate, canUndo, canRedo, onUndo, onRedo }) {
+export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onExport, onImport, onGenerate, canUndo, canRedo, onUndo, onRedo, connectedFileName, saveStatus, isFileSystemSupported, onOpen, onSaveAs }) {
+  const statusDotColor = saveStatus === "saving" ? COLORS.warning
+    : saveStatus === "saved" ? COLORS.success
+    : saveStatus === "error" ? COLORS.danger
+    : null;
   return (
+    <>
+    <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
     <div
       style={{
         height: 56,
@@ -55,6 +61,37 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
         >
           App Flow Designer
         </span>
+        {connectedFileName && (
+          <span
+            style={{
+              fontSize: 10,
+              color: COLORS.textMuted,
+              background: "rgba(255,255,255,0.04)",
+              padding: "3px 8px",
+              borderRadius: 4,
+              fontFamily: FONTS.mono,
+              border: `1px solid ${COLORS.border}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {statusDotColor && (
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: statusDotColor,
+                  display: "inline-block",
+                  flexShrink: 0,
+                  animation: saveStatus === "saving" ? "pulse-dot 1s infinite" : "none",
+                }}
+              />
+            )}
+            {connectedFileName}
+          </span>
+        )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -144,6 +181,26 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
           + Blank Screen
         </button>
 
+        {isFileSystemSupported && (
+          <button
+            onClick={onOpen}
+            title="Open file (Cmd+O)"
+            style={{
+              padding: "8px 16px",
+              background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 8,
+              color: COLORS.textMuted,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: FONTS.mono,
+            }}
+          >
+            Open
+          </button>
+        )}
+
         <button
           onClick={onImport}
           style={{
@@ -182,6 +239,30 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
           Export
         </button>
 
+        {isFileSystemSupported && (
+          <button
+            onClick={onSaveAs}
+            disabled={screenCount === 0}
+            title="Save As (Cmd+S)"
+            style={{
+              padding: "8px 16px",
+              background: screenCount === 0
+                ? "rgba(108,92,231,0.05)"
+                : "rgba(108,92,231,0.12)",
+              border: `1px solid ${screenCount === 0 ? COLORS.border : "rgba(108,92,231,0.3)"}`,
+              borderRadius: 8,
+              color: screenCount === 0 ? COLORS.textDim : COLORS.accentLight,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: screenCount === 0 ? "not-allowed" : "pointer",
+              fontFamily: FONTS.mono,
+              transition: "all 0.2s",
+            }}
+          >
+            Save As
+          </button>
+        )}
+
         <button
           onClick={onGenerate}
           disabled={screenCount === 0}
@@ -206,5 +287,6 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
         </button>
       </div>
     </div>
+    </>
   );
 }

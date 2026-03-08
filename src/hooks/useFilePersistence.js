@@ -1,0 +1,155 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+import { buildPayload } from "../utils/buildPayload";
+import { importFlow } from "../utils/importFlow";
+
+const isFileSystemSupported = typeof window !== "undefined" && "showOpenFilePicker" in window;
+
+const FLOWFORGE_FILE_TYPES = [
+  {
+    description: "FlowForge files",
+    accept: { "application/json": [".flowforge"] },
+  },
+];
+
+export function useFilePersistence(screens, connections, pan, zoom) {
+  const fileHandleRef = useRef(null);
+  const [connectedFileName, setConnectedFileName] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const panRef = useRef(pan);
+  const zoomRef = useRef(zoom);
+  const skipNextSaveRef = useRef(false);
+  const debounceRef = useRef(null);
+  const statusTimeoutRef = useRef(null);
+
+  // Keep viewport refs in sync without triggering auto-save
+  useEffect(() => { panRef.current = pan; }, [pan]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+  const writeToDisk = useCallback(async () => {
+    const handle = fileHandleRef.current;
+    if (!handle) return;
+
+    setSaveStatus("saving");
+    try {
+      const payload = buildPayload(screens, connections, panRef.current, zoomRef.current);
+      const json = JSON.stringify(payload, null, 2);
+      const writable = await handle.createWritable();
+      await writable.write(json);
+      await writable.close();
+
+      setSaveStatus("saved");
+      if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+      statusTimeoutRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      console.error("Auto-save failed:", err);
+      setSaveStatus("error");
+      fileHandleRef.current = null;
+      setConnectedFileName(null);
+    }
+  }, [screens, connections]);
+
+  // Auto-save when screens or connections change
+  useEffect(() => {
+    if (!fileHandleRef.current) return;
+    if (screens.length === 0) return;
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      writeToDisk();
+    }, 1500);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [screens, connections, writeToDisk]);
+
+  const openFile = useCallback(async () => {
+    if (!isFileSystemSupported) return null;
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: FLOWFORGE_FILE_TYPES,
+        multiple: false,
+      });
+      const file = await handle.getFile();
+      const text = await file.text();
+      const payload = importFlow(text);
+
+      fileHandleRef.current = handle;
+      setConnectedFileName(file.name);
+      setSaveStatus("idle");
+      skipNextSaveRef.current = true;
+
+      return payload;
+    } catch (err) {
+      if (err.name === "AbortError") return null;
+      throw err;
+    }
+  }, []);
+
+  const saveAs = useCallback(async () => {
+    if (!isFileSystemSupported) return;
+    try {
+      const handle = await window.showSaveFilePicker({
+        types: FLOWFORGE_FILE_TYPES,
+        suggestedName: "flow-export.flowforge",
+      });
+
+      fileHandleRef.current = handle;
+      setConnectedFileName(handle.name);
+      skipNextSaveRef.current = false;
+
+      // Write immediately
+      const payload = buildPayload(screens, connections, panRef.current, zoomRef.current);
+      const json = JSON.stringify(payload, null, 2);
+      const writable = await handle.createWritable();
+      await writable.write(json);
+      await writable.close();
+
+      setSaveStatus("saved");
+      if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+      statusTimeoutRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      console.error("Save As failed:", err);
+      setSaveStatus("error");
+    }
+  }, [screens, connections]);
+
+  const disconnect = useCallback(() => {
+    fileHandleRef.current = null;
+    setConnectedFileName(null);
+    setSaveStatus("idle");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+  }, []);
+
+  const saveNow = useCallback(async () => {
+    if (!fileHandleRef.current) return false;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    await writeToDisk();
+    return true;
+  }, [writeToDisk]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    };
+  }, []);
+
+  return {
+    connectedFileName,
+    saveStatus,
+    isFileSystemSupported,
+    openFile,
+    saveAs,
+    saveNow,
+    disconnect,
+  };
+}
