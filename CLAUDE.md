@@ -18,6 +18,7 @@ src/
     ScreenNode.jsx          — Draggable screen card with image, hotspots, action buttons
     ConnectionLines.jsx     — SVG layer rendering interactive navigation arrows between screens
     HotspotModal.jsx        — Modal for creating/editing hotspot tap areas
+    DocumentsPanel.jsx      — Full-screen panel for managing project-level documents
     InstructionsPanel.jsx   — Panel displaying generated AI build instructions
     RenameModal.jsx         — Modal for renaming screens
     ImportConfirmModal.jsx  — Modal for import replace/merge confirmation
@@ -33,12 +34,12 @@ src/
   utils/
     generateId.js           — Unique ID generator (timestamp + random)
     generateInstructions.js — Legacy single-string AI instruction generator (delegates to generateInstructionFiles)
-    generateInstructionFiles.js — Multi-file AI instruction generator (main.md, screens.md, navigation.md, build-guide.md)
+    generateInstructionFiles.js — Multi-file AI instruction generator (main.md, screens.md, navigation.md, build-guide.md, documents.md)
     analyzeNavGraph.js      — Navigation graph analysis (entry points, tab bars, modals, back loops)
     zipBuilder.js           — Zero-dependency browser-native ZIP file creator (STORE compression)
     buildPayload.js         — Pure function to construct .flowforge JSON payload (used by export and auto-save)
-    exportFlow.js           — Export screens/connections as .flowforge JSON file
-    importFlow.js           — Parse and validate .flowforge JSON files (v1, v2, v3, and v4)
+    exportFlow.js           — Export screens/connections/documents as .flowforge JSON file
+    importFlow.js           — Parse and validate .flowforge JSON files (v1, v2, v3, v4, and v5)
     mergeFlow.js            — Remap IDs and offset positions for merge imports
 ```
 
@@ -53,6 +54,7 @@ FlowForge (src/FlowForge.jsx)
   │   └── EmptyState — Shown when no screens exist
   ├── Sidebar — Selected screen details, hotspot list, incoming links
   ├── HotspotModal — Create/edit hotspot tap areas and actions
+  ├── DocumentsPanel — Project-level document management (full-screen overlay)
   ├── InstructionsPanel — Generated AI build instructions viewer
   ├── RenameModal — Screen rename dialog
   └── ImportConfirmModal — Import replace/merge confirmation dialog
@@ -62,21 +64,22 @@ FlowForge (src/FlowForge.jsx)
 
 - **screens[]** — `{ id, name, x, y, width, imageData, imageWidth, imageHeight, description, hotspots[], stateGroup, stateName }`
 - **connections[]** — `{ id, fromScreenId, toScreenId, hotspotId, label, action, connectionPath }`
+- **documents[]** — `{ id, name, content, createdAt }` — Project-level reusable documents (API specs, design guides, etc.)
 - **connectionPath values**: `default`, `api-success`, `api-error`
-- **hotspot** — `{ id, label, elementType, x, y, w, h (all %), action, targetScreenId, apiEndpoint, apiMethod, customDescription, apiDocs, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc }`
+- **hotspot** — `{ id, label, elementType, x, y, w, h (all %), action, targetScreenId, apiEndpoint, apiMethod, customDescription, documentId, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc }`
 - **elementType values**: `button`, `text-input`, `toggle`, `card`, `icon`, `link`, `image`, `tab`, `list-item`, `other`
 - **Hotspot actions**: `navigate`, `back`, `modal`, `api`, `custom`
-- **api action fields**: `apiEndpoint` (string, e.g. "/api/users"), `apiMethod` ("GET"|"POST"|"PUT"|"DELETE"|"PATCH"), `apiDocs` (string, free-text API documentation)
+- **api action fields**: `apiEndpoint` (string, e.g. "/api/users"), `apiMethod` ("GET"|"POST"|"PUT"|"DELETE"|"PATCH"), `documentId` (string|null, references a document in documents[])
 - **api follow-up fields**: `onSuccessAction`/`onErrorAction` ("navigate"|"back"|"modal"|"custom"|""), `onSuccessTargetId`/`onErrorTargetId` (screen ID), `onSuccessCustomDesc`/`onErrorCustomDesc` (string)
 - **custom action fields**: `customDescription` (string, free-text behavior description)
-- **.flowforge file** — `{ version: 1|2|3|4, metadata: { name, exportedAt, screenCount, connectionCount }, viewport: { pan, zoom }, screens[], connections[] }`. v2 adds elementType, apiEndpoint, apiMethod, customDescription to hotspots. v3 adds apiDocs, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc to hotspots and connectionPath to connections. v4 adds stateGroup and stateName to screens.
+- **.flowforge file** — `{ version: 1|2|3|4|5, metadata: { name, exportedAt, screenCount, connectionCount, documentCount }, viewport: { pan, zoom }, screens[], connections[], documents[] }`. v2 adds elementType, apiEndpoint, apiMethod, customDescription to hotspots. v3 adds apiDocs, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc to hotspots and connectionPath to connections. v4 adds stateGroup and stateName to screens. v5 replaces inline apiDocs with top-level documents[] and documentId references on hotspots.
 - **stateGroup** — `string | null`. Shared group ID for screens that are variants of the same logical screen. `null` = standalone.
 - **stateName** — `string`. Label for the screen state (e.g., "Default", "Loading", "Error"). Empty string for standalone screens.
 
 ### Custom Hooks
 
 - **useCanvas** — Manages pan/zoom state, canvas mouse events (drag, pan, wheel zoom). Returns `{ pan, setPan, zoom, setZoom, isPanning, dragging, canvasRef, handleDragStart, handleMouseMove, handleMouseUp, handleCanvasMouseDown }`.
-- **useScreenManager(pan, zoom, canvasRef)** — Manages screens, connections, and hotspot CRUD. Returns screen/connection state, all mutation callbacks, plus `replaceAll(screens, connections, counter)` and `mergeAll(screens, connections)` for import. Also provides `moveHotspot(screenId, hotspotId, x, y)`, `updateScreenDimensions(screenId, imageWidth, imageHeight)`, `quickConnectHotspot(screenId, hotspotId, targetScreenId)` for interactive hotspot features, and `updateConnection(connectionId, patch)` / `deleteConnection(connectionId)` for direct connection manipulation. Also provides undo/redo via `canUndo`, `canRedo`, `undo()`, `redo()`, `captureDragSnapshot()`, `commitDragSnapshot()`.
+- **useScreenManager(pan, zoom, canvasRef)** — Manages screens, connections, documents, and hotspot CRUD. Returns screen/connection/document state, all mutation callbacks, plus `replaceAll(screens, connections, counter, documents)` and `mergeAll(screens, connections, documents)` for import. Also provides `moveHotspot(screenId, hotspotId, x, y)`, `updateScreenDimensions(screenId, imageWidth, imageHeight)`, `quickConnectHotspot(screenId, hotspotId, targetScreenId)` for interactive hotspot features, and `updateConnection(connectionId, patch)` / `deleteConnection(connectionId)` for direct connection manipulation. Document CRUD: `addDocument(name, content)` returns new ID synchronously, `updateDocument(docId, patch)`, `deleteDocument(docId)` (also clears documentId on any referencing hotspots). Also provides undo/redo via `canUndo`, `canRedo`, `undo()`, `redo()`, `captureDragSnapshot()`, `commitDragSnapshot()`.
   - **Screen placement**: `addScreen()` places screens on a grid layout (used by file upload and drag-and-drop). `addScreenAtCenter(imageData, name, offset)` places screens at the viewport center in world coordinates (used by paste and "Add Blank"). Multiple pasted images are staggered diagonally with `offset * 30px`.
   - **Screen states**: `addState(parentScreenId)` creates a variant screen 250px right of parent, sharing a `stateGroup` ID. If the parent has no group yet, one is generated and the parent gets `stateName: "Default"`. `updateStateName(screenId, stateName)` updates the state label. `removeScreen()` auto-cleans: if only one screen remains in a group after deletion, its `stateGroup` and `stateName` are cleared.
 

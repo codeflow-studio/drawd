@@ -135,7 +135,7 @@ const PLATFORM_TERMINOLOGY = {
 
 // --- Sub-generators ---
 
-function generateMainMd(screens, connections, options, navAnalysis) {
+function generateMainMd(screens, connections, options, navAnalysis, documents = []) {
   const sorted = sortedScreens(screens);
   const platform = options.platform || "auto";
   const platformLabel = platform === "auto"
@@ -154,6 +154,7 @@ function generateMainMd(screens, connections, options, navAnalysis) {
   md += `| | |\n|---|---|\n`;
   md += `| **Screens** | ${screens.length} |\n`;
   md += `| **Connections** | ${connections.length} |\n`;
+  md += `| **Documents** | ${documents.length} |\n`;
   md += `| **Platform** | ${platformLabel} |\n`;
   md += `| **Device Type** | ${deviceType} |\n\n`;
 
@@ -173,6 +174,9 @@ function generateMainMd(screens, connections, options, navAnalysis) {
   md += `- **screens.md** — Detailed screen specifications, hotspots, and element descriptions\n`;
   md += `- **navigation.md** — Navigation architecture, flow connections, and graph analysis\n`;
   md += `- **build-guide.md** — Platform-specific implementation instructions and code patterns\n`;
+  if (documents.length > 0) {
+    md += `- **documents.md** — Project reference documents (API specs, design guides, etc.)\n`;
+  }
   md += `- **images/** — Screen reference images (design captures/wireframes)\n`;
 
   return md;
@@ -186,7 +190,7 @@ function mostCommon(arr) {
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
 }
 
-function generateScreenDetailMd(s, screens, images) {
+function generateScreenDetailMd(s, screens, images, documents = []) {
   let md = "";
 
   if (s.description) {
@@ -256,8 +260,11 @@ function generateScreenDetailMd(s, screens, images) {
 
         if (h.onSuccessAction || h.onErrorAction) md += `\n`;
 
-        if (h.apiDocs) {
-          md += `API Documentation:\n\`\`\`\n${h.apiDocs}\n\`\`\`\n\n`;
+        if (h.documentId) {
+          const doc = documents.find((d) => d.id === h.documentId);
+          if (doc) {
+            md += `API Documentation: see **${doc.name}** in documents.md\n\n`;
+          }
         }
       }
       if (h.action === "custom" && h.customDescription) {
@@ -271,7 +278,22 @@ function generateScreenDetailMd(s, screens, images) {
   return md;
 }
 
-function generateScreensMd(screens, connections, images) {
+function generateDocumentsMd(documents) {
+  if (documents.length === 0) return null;
+  let md = `# Project Documents\n\n`;
+  md += `This file contains all reference documents attached to the project.\n\n`;
+  documents.forEach((doc, i) => {
+    md += `## ${i + 1}. ${doc.name}\n\n`;
+    if (doc.content) {
+      md += `\`\`\`\n${doc.content}\n\`\`\`\n\n`;
+    } else {
+      md += `*Empty document*\n\n`;
+    }
+  });
+  return md;
+}
+
+function generateScreensMd(screens, connections, images, documents = []) {
   const sorted = sortedScreens(screens);
   let md = `# Screens\n\n`;
 
@@ -300,14 +322,14 @@ function generateScreensMd(screens, connections, images) {
       group.forEach((gs) => {
         output.add(gs.id);
         md += `### State: ${gs.stateName || gs.name}\n\n`;
-        md += generateScreenDetailMd(gs, screens, images);
+        md += generateScreenDetailMd(gs, screens, images, documents);
       });
 
       md += `---\n\n`;
     } else {
       output.add(s.id);
       md += `## Screen ${screenNum}: ${s.name}\n\n`;
-      md += generateScreenDetailMd(s, screens, images);
+      md += generateScreenDetailMd(s, screens, images, documents);
       md += `---\n\n`;
     }
   });
@@ -445,19 +467,25 @@ function generateBuildGuideMd(screens, connections, options) {
  *
  * @param {Array} screens - Array of screen objects
  * @param {Array} connections - Array of connection objects
- * @param {Object} options - { platform: "auto"|"swiftui"|"react-native"|"flutter"|"jetpack-compose" }
+ * @param {Object} options - { platform: "auto"|"swiftui"|"react-native"|"flutter"|"jetpack-compose", documents: [] }
  * @returns {{ files: Array<{ name: string, content: string }>, images: Array<{ name: string, data: Uint8Array }> }}
  */
 export function generateInstructionFiles(screens, connections, options = {}) {
+  const documents = options.documents || [];
   const navAnalysis = analyzeNavGraph(screens, connections);
   const images = extractImages(screens);
 
   const files = [
-    { name: "main.md", content: generateMainMd(screens, connections, options, navAnalysis) },
-    { name: "screens.md", content: generateScreensMd(screens, connections, images) },
+    { name: "main.md", content: generateMainMd(screens, connections, options, navAnalysis, documents) },
+    { name: "screens.md", content: generateScreensMd(screens, connections, images, documents) },
     { name: "navigation.md", content: generateNavigationMd(screens, connections, navAnalysis) },
     { name: "build-guide.md", content: generateBuildGuideMd(screens, connections, options) },
   ];
+
+  const documentsMd = generateDocumentsMd(documents);
+  if (documentsMd) {
+    files.push({ name: "documents.md", content: documentsMd });
+  }
 
   return { files, images };
 }

@@ -1,6 +1,6 @@
 import { COLORS, FONTS } from "../styles/theme";
 
-export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onExport, onImport, onGenerate, canUndo, canRedo, onUndo, onRedo, connectedFileName, saveStatus, isFileSystemSupported, onOpen, onSaveAs }) {
+export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onExport, onImport, onGenerate, canUndo, canRedo, onUndo, onRedo, connectedFileName, saveStatus, isFileSystemSupported, onOpen, onSaveAs, onDocuments, documentCount = 0 }) {
   const statusDotColor = saveStatus === "saving" ? COLORS.warning
     : saveStatus === "saved" ? COLORS.success
     : saveStatus === "error" ? COLORS.danger
@@ -97,6 +97,7 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ fontSize: 11, color: COLORS.textDim, fontFamily: FONTS.mono }}>
           {screenCount} screen{screenCount !== 1 ? "s" : ""} &middot; {connectionCount} link{connectionCount !== 1 ? "s" : ""}
+          {documentCount > 0 && ` \u00b7 ${documentCount} doc${documentCount !== 1 ? "s" : ""}`}
         </span>
 
         <div style={{ display: "flex", gap: 2 }}>
@@ -145,6 +146,38 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
             &#8618;
           </button>
         </div>
+
+        <button
+          onClick={onDocuments}
+          style={{
+            padding: "8px 16px",
+            background: "rgba(255,255,255,0.04)",
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 8,
+            color: COLORS.textMuted,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: FONTS.mono,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          Documents
+          {documentCount > 0 && (
+            <span style={{
+              background: "rgba(108,92,231,0.25)",
+              color: COLORS.accentLight,
+              borderRadius: 10,
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "1px 6px",
+            }}>
+              {documentCount}
+            </span>
+          )}
+        </button>
 
         <button
           onClick={onUpload}

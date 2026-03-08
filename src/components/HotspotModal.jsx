@@ -61,7 +61,7 @@ function FollowUpSection({ title, titleColor, action, setAction, targetId, setTa
   );
 }
 
-export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefilledRect, onSave, onDelete, onClose }) {
+export function HotspotModal({ screen, hotspot, screens, documents = [], onAddDocument, prefilledTarget, prefilledRect, onSave, onDelete, onClose }) {
   const [label, setLabel] = useState(hotspot?.label || "");
   const [elementType, setElementType] = useState(hotspot?.elementType || "button");
   const [targetId, setTargetId] = useState(hotspot?.targetScreenId || prefilledTarget || "");
@@ -75,7 +75,8 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
   const [h, setH] = useState(hotspot?.h ?? prefilledRect?.h ?? 15);
 
   // API follow-up fields
-  const [apiDocs, setApiDocs] = useState(hotspot?.apiDocs || "");
+  const [documentId, setDocumentId] = useState(hotspot?.documentId || null);
+  const [pasteText, setPasteText] = useState("");
   const [onSuccessAction, setOnSuccessAction] = useState(hotspot?.onSuccessAction || "");
   const [onSuccessTargetId, setOnSuccessTargetId] = useState(hotspot?.onSuccessTargetId || "");
   const [onSuccessCustomDesc, setOnSuccessCustomDesc] = useState(hotspot?.onSuccessCustomDesc || "");
@@ -84,6 +85,27 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
   const [onErrorCustomDesc, setOnErrorCustomDesc] = useState(hotspot?.onErrorCustomDesc || "");
 
   const otherScreens = screens.filter((s) => s.id !== screen.id);
+  const selectedDoc = documents.find((d) => d.id === documentId) || null;
+
+  const handleDocumentChange = (value) => {
+    if (value === "__create__") {
+      const autoName = label ? `${label} — API Docs` : "New API Document";
+      const id = onAddDocument(autoName, "");
+      setDocumentId(id);
+    } else {
+      setDocumentId(value || null);
+    }
+  };
+
+  const handlePasteZone = (e) => {
+    const pasted = e.clipboardData?.getData("text") || "";
+    if (!pasted.trim()) return;
+    e.preventDefault();
+    const autoName = label ? `${label} — API Docs` : "New API Document";
+    const id = onAddDocument(autoName, pasted.trim());
+    setDocumentId(id);
+    setPasteText("");
+  };
 
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
@@ -105,7 +127,7 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
             apiEndpoint,
             apiMethod,
             customDescription,
-            apiDocs,
+            documentId: documentId || null,
             onSuccessAction,
             onSuccessTargetId: onSuccessTargetId || null,
             onSuccessCustomDesc,
@@ -177,14 +199,55 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
 
                 <label style={styles.monoLabel}>
                   API DOCUMENTATION
-                  <textarea
-                    value={apiDocs}
-                    onChange={(e) => setApiDocs(e.target.value)}
-                    placeholder="Paste curl commands, OpenAPI specs, or API docs here (optional)"
-                    rows={6}
-                    style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
-                  />
+                  <select
+                    value={documentId || ""}
+                    onChange={(e) => handleDocumentChange(e.target.value)}
+                    style={styles.select}
+                  >
+                    <option value="">— None —</option>
+                    {documents.map((doc) => (
+                      <option key={doc.id} value={doc.id}>{doc.name}</option>
+                    ))}
+                    <option value="__create__">+ Create New Document</option>
+                  </select>
                 </label>
+
+                {selectedDoc && (
+                  <div style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: `1px solid ${COLORS.border}`,
+                    borderRadius: 6,
+                    padding: "10px 12px",
+                    fontSize: 12,
+                    color: COLORS.textDim,
+                    fontFamily: "inherit",
+                    maxHeight: 80,
+                    overflow: "hidden",
+                    lineHeight: 1.5,
+                    position: "relative",
+                  }}>
+                    <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 4, letterSpacing: "0.06em" }}>
+                      PREVIEW
+                    </div>
+                    <div style={{ whiteSpace: "pre-wrap", overflow: "hidden" }}>
+                      {selectedDoc.content.slice(0, 200) || <em>Empty document</em>}
+                    </div>
+                  </div>
+                )}
+
+                {!documentId && (
+                  <label style={styles.monoLabel}>
+                    PASTE TO CREATE DOCUMENT
+                    <textarea
+                      value={pasteText}
+                      onChange={(e) => setPasteText(e.target.value)}
+                      onPaste={handlePasteZone}
+                      placeholder="Paste curl commands, OpenAPI specs, or API docs here to create a new document..."
+                      rows={4}
+                      style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
+                    />
+                  </label>
+                )}
 
                 <FollowUpSection
                   title="On Success"

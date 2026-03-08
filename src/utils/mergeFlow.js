@@ -1,6 +1,6 @@
 import { generateId } from "./generateId";
 
-export function mergeFlow(importedScreens, importedConnections, existingScreens) {
+export function mergeFlow(importedScreens, importedConnections, existingScreens, importedDocuments = []) {
   const maxX = existingScreens.length > 0
     ? Math.max(...existingScreens.map((s) => s.x + s.width))
     : 0;
@@ -9,6 +9,14 @@ export function mergeFlow(importedScreens, importedConnections, existingScreens)
   const screenIdMap = {};
   const hotspotIdMap = {};
   const stateGroupMap = {};
+  const documentIdMap = {};
+
+  // Remap document IDs
+  const newDocuments = importedDocuments.map((doc) => {
+    const newId = generateId();
+    documentIdMap[doc.id] = newId;
+    return { ...doc, id: newId };
+  });
 
   const newScreens = importedScreens.map((screen) => {
     const newScreenId = generateId();
@@ -38,13 +46,16 @@ export function mergeFlow(importedScreens, importedConnections, existingScreens)
     };
   });
 
-  // Remap targetScreenId in hotspots
+  // Remap targetScreenId and documentId in hotspots
   newScreens.forEach((screen) => {
     screen.hotspots = screen.hotspots.map((hs) => ({
       ...hs,
       targetScreenId: hs.targetScreenId
         ? screenIdMap[hs.targetScreenId] || hs.targetScreenId
         : hs.targetScreenId,
+      documentId: hs.documentId
+        ? documentIdMap[hs.documentId] || hs.documentId
+        : hs.documentId,
     }));
   });
 
@@ -56,5 +67,5 @@ export function mergeFlow(importedScreens, importedConnections, existingScreens)
     hotspotId: hotspotIdMap[conn.hotspotId] || conn.hotspotId,
   }));
 
-  return { screens: newScreens, connections: newConnections };
+  return { screens: newScreens, connections: newConnections, documents: newDocuments };
 }

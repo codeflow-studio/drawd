@@ -4,6 +4,7 @@ import { generateId } from "../utils/generateId";
 export function useScreenManager(pan, zoom, canvasRef) {
   const [screens, setScreens] = useState([]);
   const [connections, setConnections] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [selectedScreen, setSelectedScreen] = useState(null);
 
   const fileInputRef = useRef(null);
@@ -20,10 +21,11 @@ export function useScreenManager(pan, zoom, canvasRef) {
     setCanRedo(historyRef.current.future.length > 0);
   }, []);
 
-  const pushHistory = useCallback((prevScreens, prevConnections) => {
+  const pushHistory = useCallback((prevScreens, prevConnections, prevDocuments) => {
     const snapshot = {
       screens: JSON.parse(JSON.stringify(prevScreens)),
       connections: JSON.parse(JSON.stringify(prevConnections)),
+      documents: JSON.parse(JSON.stringify(prevDocuments)),
     };
     historyRef.current.past.push(snapshot);
     historyRef.current.future = [];
@@ -39,8 +41,9 @@ export function useScreenManager(pan, zoom, canvasRef) {
     dragSnapshotRef.current = {
       screens: JSON.parse(JSON.stringify(screens)),
       connections: JSON.parse(JSON.stringify(connections)),
+      documents: JSON.parse(JSON.stringify(documents)),
     };
-  }, [screens, connections]);
+  }, [screens, connections, documents]);
 
   const commitDragSnapshot = useCallback(() => {
     if (dragSnapshotRef.current) {
@@ -57,13 +60,15 @@ export function useScreenManager(pan, zoom, canvasRef) {
     const current = {
       screens: JSON.parse(JSON.stringify(screens)),
       connections: JSON.parse(JSON.stringify(connections)),
+      documents: JSON.parse(JSON.stringify(documents)),
     };
     future.push(current);
     const snapshot = past.pop();
     setScreens(snapshot.screens);
     setConnections(snapshot.connections);
+    setDocuments(snapshot.documents || []);
     syncHistoryFlags();
-  }, [screens, connections, syncHistoryFlags]);
+  }, [screens, connections, documents, syncHistoryFlags]);
 
   const redo = useCallback(() => {
     const { past, future } = historyRef.current;
@@ -71,16 +76,18 @@ export function useScreenManager(pan, zoom, canvasRef) {
     const current = {
       screens: JSON.parse(JSON.stringify(screens)),
       connections: JSON.parse(JSON.stringify(connections)),
+      documents: JSON.parse(JSON.stringify(documents)),
     };
     past.push(current);
     const snapshot = future.pop();
     setScreens(snapshot.screens);
     setConnections(snapshot.connections);
+    setDocuments(snapshot.documents || []);
     syncHistoryFlags();
-  }, [screens, connections, syncHistoryFlags]);
+  }, [screens, connections, documents, syncHistoryFlags]);
 
   const addScreen = useCallback((imageData = null, name = null) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     const count = screenCounter.current++;
     const offsetX = (screens.length % 4) * 280 + 60;
     const offsetY = Math.floor(screens.length / 4) * 420 + 60;
@@ -98,10 +105,10 @@ export function useScreenManager(pan, zoom, canvasRef) {
     };
     setScreens((prev) => [...prev, newScreen]);
     setSelectedScreen(newScreen.id);
-  }, [screens, connections, pushHistory, pan, zoom]);
+  }, [screens, connections, documents, pushHistory, pan, zoom]);
 
   const addScreenAtCenter = useCallback((imageData = null, name = null, offset = 0) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     const count = screenCounter.current++;
     const screenWidth = 220;
     const screenHeight = 160;
@@ -124,10 +131,10 @@ export function useScreenManager(pan, zoom, canvasRef) {
     };
     setScreens((prev) => [...prev, newScreen]);
     setSelectedScreen(newScreen.id);
-  }, [screens, connections, pushHistory, pan, zoom, canvasRef]);
+  }, [screens, connections, documents, pushHistory, pan, zoom, canvasRef]);
 
   const removeScreen = useCallback((id) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     const removedScreen = screens.find((s) => s.id === id);
     setScreens((prev) => {
       const remaining = prev.filter((s) => s.id !== id);
@@ -148,22 +155,22 @@ export function useScreenManager(pan, zoom, canvasRef) {
       prev.filter((c) => c.fromScreenId !== id && c.toScreenId !== id)
     );
     if (selectedScreen === id) setSelectedScreen(null);
-  }, [selectedScreen, screens, connections, pushHistory]);
+  }, [selectedScreen, screens, connections, documents, pushHistory]);
 
   const renameScreen = useCallback((id, name) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setScreens((prev) => prev.map((s) => (s.id === id ? { ...s, name } : s)));
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const updateScreenDescription = useCallback((id, description) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setScreens((prev) => prev.map((s) => (s.id === id ? { ...s, description } : s)));
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const assignScreenImage = useCallback((id, imageData) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setScreens((prev) => prev.map((s) => (s.id === id ? { ...s, imageData } : s)));
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const moveScreen = useCallback((id, x, y) => {
     setScreens((prev) =>
@@ -231,7 +238,7 @@ export function useScreenManager(pan, zoom, canvasRef) {
   }, [addScreen]);
 
   const saveHotspot = useCallback((screenId, hotspot) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setScreens((prev) =>
       prev.map((s) => {
         if (s.id !== screenId) return s;
@@ -321,17 +328,17 @@ export function useScreenManager(pan, zoom, canvasRef) {
         prev.filter((c) => c.hotspotId !== hotspot.id)
       );
     }
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const deleteHotspot = useCallback((screenId, hotspotId) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setScreens((prev) =>
       prev.map((s) =>
         s.id === screenId ? { ...s, hotspots: s.hotspots.filter((h) => h.id !== hotspotId) } : s
       )
     );
     setConnections((prev) => prev.filter((c) => c.hotspotId !== hotspotId));
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const moveHotspot = useCallback((screenId, hotspotId, newX, newY) => {
     setScreens((prev) =>
@@ -370,7 +377,7 @@ export function useScreenManager(pan, zoom, canvasRef) {
   }, []);
 
   const quickConnectHotspot = useCallback((screenId, hotspotId, targetScreenId) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setScreens((prev) =>
       prev.map((s) => {
         if (s.id !== screenId) return s;
@@ -400,22 +407,22 @@ export function useScreenManager(pan, zoom, canvasRef) {
         },
       ];
     });
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const updateConnection = useCallback((connectionId, patch) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setConnections((prev) =>
       prev.map((c) => (c.id === connectionId ? { ...c, ...patch } : c))
     );
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const deleteConnection = useCallback((connectionId) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setConnections((prev) => prev.filter((c) => c.id !== connectionId));
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const addConnection = useCallback((fromScreenId, toScreenId) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setConnections((prev) => {
       const exists = prev.some(
         (c) => c.fromScreenId === fromScreenId && c.toScreenId === toScreenId && !c.hotspotId
@@ -430,10 +437,10 @@ export function useScreenManager(pan, zoom, canvasRef) {
         action: "navigate",
       }];
     });
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const addState = useCallback((parentScreenId) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     const parent = screens.find((s) => s.id === parentScreenId);
     if (!parent) return;
 
@@ -467,30 +474,60 @@ export function useScreenManager(pan, zoom, canvasRef) {
     };
     setScreens((prev) => [...prev, newScreen]);
     setSelectedScreen(newScreen.id);
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
   const updateStateName = useCallback((screenId, stateName) => {
-    pushHistory(screens, connections);
+    pushHistory(screens, connections, documents);
     setScreens((prev) => prev.map((s) => (s.id === screenId ? { ...s, stateName } : s)));
-  }, [screens, connections, pushHistory]);
+  }, [screens, connections, documents, pushHistory]);
 
-  const replaceAll = useCallback((newScreens, newConnections, newScreenCounter) => {
+  const addDocument = useCallback((name, content) => {
+    pushHistory(screens, connections, documents);
+    const id = generateId();
+    const doc = { id, name, content, createdAt: new Date().toISOString() };
+    setDocuments((prev) => [...prev, doc]);
+    return id;
+  }, [screens, connections, documents, pushHistory]);
+
+  const updateDocument = useCallback((docId, patch) => {
+    pushHistory(screens, connections, documents);
+    setDocuments((prev) => prev.map((d) => (d.id === docId ? { ...d, ...patch } : d)));
+  }, [screens, connections, documents, pushHistory]);
+
+  const deleteDocument = useCallback((docId) => {
+    pushHistory(screens, connections, documents);
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    // Clear documentId from any hotspots referencing this document
+    setScreens((prev) =>
+      prev.map((s) => ({
+        ...s,
+        hotspots: s.hotspots.map((h) =>
+          h.documentId === docId ? { ...h, documentId: null } : h
+        ),
+      }))
+    );
+  }, [screens, connections, documents, pushHistory]);
+
+  const replaceAll = useCallback((newScreens, newConnections, newScreenCounter, newDocuments = []) => {
     clearHistory();
     setScreens(newScreens);
     setConnections(newConnections);
+    setDocuments(newDocuments);
     screenCounter.current = newScreenCounter;
     setSelectedScreen(null);
   }, [clearHistory]);
 
-  const mergeAll = useCallback((newScreens, newConnections) => {
+  const mergeAll = useCallback((newScreens, newConnections, newDocuments = []) => {
     clearHistory();
     setScreens((prev) => [...prev, ...newScreens]);
     setConnections((prev) => [...prev, ...newConnections]);
+    setDocuments((prev) => [...prev, ...newDocuments]);
   }, [clearHistory]);
 
   return {
     screens,
     connections,
+    documents,
     selectedScreen,
     setSelectedScreen,
     fileInputRef,
@@ -516,6 +553,9 @@ export function useScreenManager(pan, zoom, canvasRef) {
     addConnection,
     addState,
     updateStateName,
+    addDocument,
+    updateDocument,
+    deleteDocument,
     replaceAll,
     mergeAll,
     canUndo,

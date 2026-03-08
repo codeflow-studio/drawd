@@ -1,3 +1,5 @@
+import { generateId } from "./generateId";
+
 export function importFlow(fileText) {
   let data;
   try {
@@ -10,7 +12,7 @@ export function importFlow(fileText) {
     throw new Error("Invalid file: missing version field.");
   }
 
-  if (data.version > 4) {
+  if (data.version > 5) {
     throw new Error(
       `Unsupported file version ${data.version}. Please update FlowForge to open this file.`
     );
@@ -24,6 +26,11 @@ export function importFlow(fileText) {
     throw new Error("Invalid file: connections must be an array.");
   }
 
+  // Ensure documents array exists
+  if (!Array.isArray(data.documents)) {
+    data.documents = [];
+  }
+
   // Backward compat: default stateGroup/stateName for older files
   for (const screen of data.screens) {
     if (screen.stateGroup === undefined) screen.stateGroup = null;
@@ -34,13 +41,34 @@ export function importFlow(fileText) {
         if (!hs.apiEndpoint) hs.apiEndpoint = "";
         if (!hs.apiMethod) hs.apiMethod = "";
         if (!hs.customDescription) hs.customDescription = "";
-        if (!hs.apiDocs) hs.apiDocs = "";
         if (!hs.onSuccessAction) hs.onSuccessAction = "";
         if (!hs.onSuccessTargetId) hs.onSuccessTargetId = "";
         if (!hs.onSuccessCustomDesc) hs.onSuccessCustomDesc = "";
         if (!hs.onErrorAction) hs.onErrorAction = "";
         if (!hs.onErrorTargetId) hs.onErrorTargetId = "";
         if (!hs.onErrorCustomDesc) hs.onErrorCustomDesc = "";
+
+        // v4 -> v5 migration: promote inline apiDocs to a document
+        if (data.version < 5) {
+          if (hs.apiDocs) {
+            const docId = generateId();
+            const docName = hs.label
+              ? `${hs.label} — API Docs`
+              : `${hs.apiMethod || "API"} ${hs.apiEndpoint || "Docs"}`;
+            data.documents.push({
+              id: docId,
+              name: docName,
+              content: hs.apiDocs,
+              createdAt: new Date().toISOString(),
+            });
+            hs.documentId = docId;
+          } else {
+            hs.documentId = null;
+          }
+          delete hs.apiDocs;
+        } else {
+          if (hs.documentId === undefined) hs.documentId = null;
+        }
       }
     }
   }

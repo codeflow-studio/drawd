@@ -1,7 +1,7 @@
 import { buildPayload } from "./buildPayload";
 
-export function exportFlow(screens, connections, pan, zoom) {
-  const payload = buildPayload(screens, connections, pan, zoom);
+export function exportFlow(screens, connections, pan, zoom, documents = []) {
+  const payload = buildPayload(screens, connections, pan, zoom, documents);
 
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: "application/json" });

@@ -11,6 +11,7 @@ import { ScreenNode } from "./components/ScreenNode";
 import { ConnectionLines } from "./components/ConnectionLines";
 import { HotspotModal } from "./components/HotspotModal";
 import { InstructionsPanel } from "./components/InstructionsPanel";
+import { DocumentsPanel } from "./components/DocumentsPanel";
 import { RenameModal } from "./components/RenameModal";
 import { ImportConfirmModal } from "./components/ImportConfirmModal";
 import { TopBar } from "./components/TopBar";
@@ -22,25 +23,26 @@ const HEADER_HEIGHT = 37;
 export default function FlowForge() {
   const { pan, setPan, zoom, setZoom, isPanning, dragging, canvasRef, isSpaceHeld, spaceHeld, handleDragStart, handleMouseMove, handleMouseUp, handleCanvasMouseDown } = useCanvas();
   const {
-    screens, connections, selectedScreen, setSelectedScreen,
+    screens, connections, documents, selectedScreen, setSelectedScreen,
     fileInputRef, addScreen, addScreenAtCenter, removeScreen, renameScreen, moveScreen,
     handleImageUpload, onFileChange, handlePaste, handleCanvasDrop,
     saveHotspot, deleteHotspot, moveHotspot, resizeHotspot, updateScreenDimensions,
     updateScreenDescription, assignScreenImage, quickConnectHotspot, updateConnection, deleteConnection,
-    addConnection, addState, updateStateName, replaceAll, mergeAll,
+    addConnection, addState, updateStateName, addDocument, updateDocument, deleteDocument,
+    replaceAll, mergeAll,
     canUndo, canRedo, undo, redo, captureDragSnapshot, commitDragSnapshot,
   } = useScreenManager(pan, zoom, canvasRef);
 
   const {
     connectedFileName, saveStatus, isFileSystemSupported,
     openFile, saveAs, saveNow, disconnect,
-  } = useFilePersistence(screens, connections, pan, zoom);
+  } = useFilePersistence(screens, connections, pan, zoom, documents);
 
   const onOpen = useCallback(async () => {
     try {
       const payload = await openFile();
       if (!payload) return;
-      replaceAll(payload.screens, payload.connections, payload.screens.length + 1);
+      replaceAll(payload.screens, payload.connections, payload.screens.length + 1, payload.documents || []);
       if (payload.viewport) {
         setPan(payload.viewport.pan);
         setZoom(payload.viewport.zoom);
@@ -59,6 +61,7 @@ export default function FlowForge() {
   }, [saveAs]);
 
   const [hotspotModal, setHotspotModal] = useState(null);
+  const [showDocuments, setShowDocuments] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState(null);
   const [renameModal, setRenameModal] = useState(null);
@@ -528,8 +531,8 @@ export default function FlowForge() {
   }, [onStartConnect]);
 
   const onExport = useCallback(() => {
-    exportFlow(screens, connections, pan, zoom);
-  }, [screens, connections, pan, zoom]);
+    exportFlow(screens, connections, pan, zoom, documents);
+  }, [screens, connections, documents, pan, zoom]);
 
   const onImport = useCallback(() => {
     importFileRef.current?.click();
@@ -553,7 +556,7 @@ export default function FlowForge() {
 
   const onImportReplace = useCallback(() => {
     if (!importConfirm) return;
-    replaceAll(importConfirm.screens, importConfirm.connections, importConfirm.screens.length + 1);
+    replaceAll(importConfirm.screens, importConfirm.connections, importConfirm.screens.length + 1, importConfirm.documents || []);
     if (importConfirm.viewport) {
       setPan(importConfirm.viewport.pan);
       setZoom(importConfirm.viewport.zoom);
@@ -563,19 +566,19 @@ export default function FlowForge() {
 
   const onImportMerge = useCallback(() => {
     if (!importConfirm) return;
-    const { screens: newScreens, connections: newConns } = mergeFlow(
-      importConfirm.screens, importConfirm.connections, screens
+    const { screens: newScreens, connections: newConns, documents: newDocs } = mergeFlow(
+      importConfirm.screens, importConfirm.connections, screens, importConfirm.documents || []
     );
-    mergeAll(newScreens, newConns);
+    mergeAll(newScreens, newConns, newDocs);
     setImportConfirm(null);
   }, [importConfirm, screens, mergeAll]);
 
   const onGenerate = useCallback(() => {
     if (screens.length === 0) return;
-    const result = generateInstructionFiles(screens, connections, { platform: "auto" });
+    const result = generateInstructionFiles(screens, connections, { platform: "auto", documents });
     setInstructions(result);
     setShowInstructions(true);
-  }, [screens, connections]);
+  }, [screens, connections, documents]);
 
   // Keyboard shortcuts: Escape cancels, Delete/Backspace removes selected connection
   useEffect(() => {
@@ -592,7 +595,7 @@ export default function FlowForge() {
       if (e.key === "Delete" || e.key === "Backspace") {
         const tag = document.activeElement?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
-        if (hotspotModal || renameModal || importConfirm || showInstructions) return;
+        if (hotspotModal || renameModal || importConfirm || showInstructions || showDocuments) return;
         if (selectedConnection) {
           e.preventDefault();
           deleteConnection(selectedConnection);
@@ -624,21 +627,21 @@ export default function FlowForge() {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
         const tag = document.activeElement?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
-        if (hotspotModal || renameModal || importConfirm || showInstructions) return;
+        if (hotspotModal || renameModal || importConfirm || showInstructions || showDocuments) return;
         e.preventDefault();
         undo();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
         const tag = document.activeElement?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
-        if (hotspotModal || renameModal || importConfirm || showInstructions) return;
+        if (hotspotModal || renameModal || importConfirm || showInstructions || showDocuments) return;
         e.preventDefault();
         redo();
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [connecting, cancelConnecting, hotspotInteraction, cancelHotspotInteraction, selectedConnection, deleteConnection, selectedScreen, removeScreen, hotspotModal, renameModal, importConfirm, showInstructions, undo, redo, saveNow, isFileSystemSupported, onSaveAs, onExport, onOpen]);
+  }, [connecting, cancelConnecting, hotspotInteraction, cancelHotspotInteraction, selectedConnection, deleteConnection, selectedScreen, removeScreen, hotspotModal, renameModal, importConfirm, showInstructions, showDocuments, undo, redo, saveNow, isFileSystemSupported, onSaveAs, onExport, onOpen]);
 
   useEffect(() => {
     const onPaste = (e) => {
@@ -710,11 +713,13 @@ export default function FlowForge() {
       <TopBar
         screenCount={screens.length}
         connectionCount={connections.length}
+        documentCount={documents.length}
         onUpload={handleImageUpload}
         onAddBlank={() => addScreenAtCenter()}
         onExport={onExport}
         onImport={onImport}
         onGenerate={onGenerate}
+        onDocuments={() => setShowDocuments(true)}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}
@@ -857,11 +862,23 @@ export default function FlowForge() {
           screen={hotspotModal.screen}
           hotspot={hotspotModal.hotspot}
           screens={screens}
+          documents={documents}
+          onAddDocument={addDocument}
           prefilledTarget={hotspotModal.prefilledTarget || null}
           prefilledRect={hotspotModal.prefilledRect || null}
           onSave={(hs) => { saveHotspot(hotspotModal.screen.id, hs); setHotspotModal(null); }}
           onDelete={(id) => { deleteHotspot(hotspotModal.screen.id, id); setHotspotModal(null); }}
           onClose={() => setHotspotModal(null)}
+        />
+      )}
+
+      {showDocuments && (
+        <DocumentsPanel
+          documents={documents}
+          onAddDocument={addDocument}
+          onUpdateDocument={updateDocument}
+          onDeleteDocument={deleteDocument}
+          onClose={() => setShowDocuments(false)}
         />
       )}
 

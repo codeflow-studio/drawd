@@ -11,7 +11,7 @@ const FLOWFORGE_FILE_TYPES = [
   },
 ];
 
-export function useFilePersistence(screens, connections, pan, zoom) {
+export function useFilePersistence(screens, connections, pan, zoom, documents = []) {
   const fileHandleRef = useRef(null);
   const [connectedFileName, setConnectedFileName] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle");
@@ -31,7 +31,7 @@ export function useFilePersistence(screens, connections, pan, zoom) {
 
     setSaveStatus("saving");
     try {
-      const payload = buildPayload(screens, connections, panRef.current, zoomRef.current);
+      const payload = buildPayload(screens, connections, panRef.current, zoomRef.current, documents);
       const json = JSON.stringify(payload, null, 2);
       const writable = await handle.createWritable();
       await writable.write(json);
@@ -47,9 +47,9 @@ export function useFilePersistence(screens, connections, pan, zoom) {
       fileHandleRef.current = null;
       setConnectedFileName(null);
     }
-  }, [screens, connections]);
+  }, [screens, connections, documents]);
 
-  // Auto-save when screens or connections change
+  // Auto-save when screens, connections, or documents change
   useEffect(() => {
     if (!fileHandleRef.current) return;
     if (screens.length === 0) return;
@@ -66,7 +66,7 @@ export function useFilePersistence(screens, connections, pan, zoom) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [screens, connections, writeToDisk]);
+  }, [screens, connections, documents, writeToDisk]);
 
   const openFile = useCallback(async () => {
     if (!isFileSystemSupported) return null;
@@ -104,7 +104,7 @@ export function useFilePersistence(screens, connections, pan, zoom) {
       skipNextSaveRef.current = false;
 
       // Write immediately
-      const payload = buildPayload(screens, connections, panRef.current, zoomRef.current);
+      const payload = buildPayload(screens, connections, panRef.current, zoomRef.current, documents);
       const json = JSON.stringify(payload, null, 2);
       const writable = await handle.createWritable();
       await writable.write(json);
@@ -118,7 +118,7 @@ export function useFilePersistence(screens, connections, pan, zoom) {
       console.error("Save As failed:", err);
       setSaveStatus("error");
     }
-  }, [screens, connections]);
+  }, [screens, connections, documents]);
 
   const disconnect = useCallback(() => {
     fileHandleRef.current = null;
