@@ -93,6 +93,8 @@ export function useScreenManager(pan, zoom, canvasRef) {
       imageData,
       description: "",
       hotspots: [],
+      stateGroup: null,
+      stateName: "",
     };
     setScreens((prev) => [...prev, newScreen]);
     setSelectedScreen(newScreen.id);
@@ -117,6 +119,8 @@ export function useScreenManager(pan, zoom, canvasRef) {
       imageData,
       description: "",
       hotspots: [],
+      stateGroup: null,
+      stateName: "",
     };
     setScreens((prev) => [...prev, newScreen]);
     setSelectedScreen(newScreen.id);
@@ -124,7 +128,22 @@ export function useScreenManager(pan, zoom, canvasRef) {
 
   const removeScreen = useCallback((id) => {
     pushHistory(screens, connections);
-    setScreens((prev) => prev.filter((s) => s.id !== id));
+    const removedScreen = screens.find((s) => s.id === id);
+    setScreens((prev) => {
+      const remaining = prev.filter((s) => s.id !== id);
+      // Auto-cleanup: if only one screen left in the stateGroup, clear it
+      if (removedScreen?.stateGroup) {
+        const siblings = remaining.filter((s) => s.stateGroup === removedScreen.stateGroup);
+        if (siblings.length === 1) {
+          return remaining.map((s) =>
+            s.stateGroup === removedScreen.stateGroup
+              ? { ...s, stateGroup: null, stateName: "" }
+              : s
+          );
+        }
+      }
+      return remaining;
+    });
     setConnections((prev) =>
       prev.filter((c) => c.fromScreenId !== id && c.toScreenId !== id)
     );
@@ -207,18 +226,22 @@ export function useScreenManager(pan, zoom, canvasRef) {
 
     if (hotspot.targetScreenId && (hotspot.action === "navigate" || hotspot.action === "modal")) {
       setConnections((prev) => {
-        const exists = prev.some(
+        // Remove any api-success/api-error connections when switching away from api
+        const cleaned = prev.filter(
+          (c) => !(c.hotspotId === hotspot.id && (c.connectionPath === "api-success" || c.connectionPath === "api-error"))
+        );
+        const exists = cleaned.some(
           (c) => c.fromScreenId === screenId && c.toScreenId === hotspot.targetScreenId && c.hotspotId === hotspot.id
         );
         if (exists) {
-          return prev.map((c) =>
+          return cleaned.map((c) =>
             c.fromScreenId === screenId && c.hotspotId === hotspot.id
-              ? { ...c, toScreenId: hotspot.targetScreenId, label: hotspot.label }
+              ? { ...c, toScreenId: hotspot.targetScreenId, label: hotspot.label, connectionPath: "default" }
               : c
           );
         }
         return [
-          ...prev,
+          ...cleaned,
           {
             id: generateId(),
             fromScreenId: screenId,
@@ -226,9 +249,58 @@ export function useScreenManager(pan, zoom, canvasRef) {
             hotspotId: hotspot.id,
             label: hotspot.label || "",
             action: hotspot.action,
+            connectionPath: "default",
           },
         ];
       });
+    }
+
+    if (hotspot.action === "api") {
+      setConnections((prev) => {
+        // Remove stale api-success/api-error connections for this hotspot
+        let updated = prev.filter(
+          (c) => !(c.hotspotId === hotspot.id && (c.connectionPath === "api-success" || c.connectionPath === "api-error"))
+        );
+        // Also remove any default connections for this hotspot (switching from navigate/modal to api)
+        updated = updated.filter(
+          (c) => !(c.hotspotId === hotspot.id && (!c.connectionPath || c.connectionPath === "default"))
+        );
+
+        // Create api-success connection if needed
+        if (hotspot.onSuccessTargetId && (hotspot.onSuccessAction === "navigate" || hotspot.onSuccessAction === "modal")) {
+          updated.push({
+            id: generateId(),
+            fromScreenId: screenId,
+            toScreenId: hotspot.onSuccessTargetId,
+            hotspotId: hotspot.id,
+            label: hotspot.label ? `${hotspot.label} (success)` : "success",
+            action: hotspot.onSuccessAction,
+            connectionPath: "api-success",
+          });
+        }
+
+        // Create api-error connection if needed
+        if (hotspot.onErrorTargetId && (hotspot.onErrorAction === "navigate" || hotspot.onErrorAction === "modal")) {
+          updated.push({
+            id: generateId(),
+            fromScreenId: screenId,
+            toScreenId: hotspot.onErrorTargetId,
+            hotspotId: hotspot.id,
+            label: hotspot.label ? `${hotspot.label} (error)` : "error",
+            action: hotspot.onErrorAction,
+            connectionPath: "api-error",
+          });
+        }
+
+        return updated;
+      });
+    }
+
+    if (hotspot.action !== "api" && hotspot.action !== "navigate" && hotspot.action !== "modal") {
+      // For back/custom actions, clean up all connections for this hotspot
+      setConnections((prev) =>
+        prev.filter((c) => c.hotspotId !== hotspot.id)
+      );
     }
   }, [screens, connections, pushHistory]);
 
@@ -341,6 +413,48 @@ export function useScreenManager(pan, zoom, canvasRef) {
     });
   }, [screens, connections, pushHistory]);
 
+  const addState = useCallback((parentScreenId) => {
+    pushHistory(screens, connections);
+    const parent = screens.find((s) => s.id === parentScreenId);
+    if (!parent) return;
+
+    const groupId = parent.stateGroup || generateId();
+    const siblings = screens.filter((s) => s.stateGroup === groupId);
+    const stateNumber = siblings.length + (parent.stateGroup ? 1 : 2);
+
+    // If parent doesn't have a stateGroup yet, assign one
+    if (!parent.stateGroup) {
+      setScreens((prev) =>
+        prev.map((s) =>
+          s.id === parentScreenId
+            ? { ...s, stateGroup: groupId, stateName: "Default" }
+            : s
+        )
+      );
+    }
+
+    const count = screenCounter.current++;
+    const newScreen = {
+      id: generateId(),
+      name: parent.name,
+      x: parent.x + 250,
+      y: parent.y,
+      width: parent.width || 220,
+      imageData: null,
+      description: "",
+      hotspots: [],
+      stateGroup: groupId,
+      stateName: `State ${stateNumber - 1}`,
+    };
+    setScreens((prev) => [...prev, newScreen]);
+    setSelectedScreen(newScreen.id);
+  }, [screens, connections, pushHistory]);
+
+  const updateStateName = useCallback((screenId, stateName) => {
+    pushHistory(screens, connections);
+    setScreens((prev) => prev.map((s) => (s.id === screenId ? { ...s, stateName } : s)));
+  }, [screens, connections, pushHistory]);
+
   const replaceAll = useCallback((newScreens, newConnections, newScreenCounter) => {
     clearHistory();
     setScreens(newScreens);
@@ -380,6 +494,8 @@ export function useScreenManager(pan, zoom, canvasRef) {
     updateConnection,
     deleteConnection,
     addConnection,
+    addState,
+    updateStateName,
     replaceAll,
     mergeAll,
     canUndo,

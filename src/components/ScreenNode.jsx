@@ -6,7 +6,7 @@ export function ScreenNode({
   onDotDragStart, onConnectTarget, onHoverTarget, isConnectHoverTarget, isConnecting,
   selectedHotspotId, onHotspotMouseDown, onImageAreaMouseDown, onHotspotDragHandleMouseDown,
   onResizeHandleMouseDown, onScreenDimensions, drawRect, isHotspotDragging,
-  onUpdateDescription, isSpaceHeld,
+  onUpdateDescription, isSpaceHeld, onAddState,
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -92,8 +92,42 @@ export function ScreenNode({
           }}
         >
           {screen.name}
+          {screen.stateGroup && screen.stateName && (
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 500,
+                color: COLORS.accent,
+                background: "rgba(108,92,231,0.15)",
+                border: "1px solid rgba(108,92,231,0.25)",
+                borderRadius: 4,
+                padding: "1px 5px",
+                marginLeft: 4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {screen.stateName}
+            </span>
+          )}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
+          <button
+            className="screen-btn"
+            onClick={(e) => { e.stopPropagation(); onAddState?.(screen.id); }}
+            title="Add screen state variant"
+            style={{
+              background: "rgba(108,92,231,0.1)",
+              border: "1px solid rgba(108,92,231,0.2)",
+              borderRadius: 6,
+              color: COLORS.accentLight,
+              fontSize: 10,
+              padding: "2px 6px",
+              cursor: "pointer",
+              fontFamily: FONTS.mono,
+            }}
+          >
+            S+
+          </button>
           <button
             className="screen-btn"
             onClick={(e) => { e.stopPropagation(); onAddHotspot(screen.id); }}

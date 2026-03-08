@@ -64,7 +64,7 @@ export function useCanvas() {
       const rect = canvasRef.current.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
-      const delta = e.deltaY > 0 ? -0.01 : 0.01;
+      const delta = e.deltaY > 0 ? -0.02 : 0.02;
 
       setZoom((prevZoom) => {
         const newZoom = Math.max(0.2, Math.min(2, prevZoom + delta));

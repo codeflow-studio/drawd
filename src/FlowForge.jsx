@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { COLORS, FONTS, FONT_LINK } from "./styles/theme";
-import { generateInstructions } from "./utils/generateInstructions";
+import { generateInstructionFiles } from "./utils/generateInstructionFiles";
 import { exportFlow } from "./utils/exportFlow";
 import { importFlow } from "./utils/importFlow";
 import { mergeFlow } from "./utils/mergeFlow";
@@ -26,13 +26,14 @@ export default function FlowForge() {
     handleImageUpload, onFileChange, handlePaste, handleCanvasDrop,
     saveHotspot, deleteHotspot, moveHotspot, resizeHotspot, updateScreenDimensions,
     updateScreenDescription, quickConnectHotspot, updateConnection, deleteConnection,
-    addConnection, replaceAll, mergeAll,
+    addConnection, addState, updateStateName, replaceAll, mergeAll,
     canUndo, canRedo, undo, redo, captureDragSnapshot, commitDragSnapshot,
   } = useScreenManager(pan, zoom, canvasRef);
 
   const [hotspotModal, setHotspotModal] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [instructions, setInstructions] = useState("");
+  const [instructions, setInstructions] = useState(null);
+  const [platformPreference, setPlatformPreference] = useState("auto");
   const [renameModal, setRenameModal] = useState(null);
   const [importConfirm, setImportConfirm] = useState(null);
   const importFileRef = useRef(null);
@@ -536,9 +537,10 @@ export default function FlowForge() {
 
   const onGenerate = useCallback(() => {
     if (screens.length === 0) return;
-    setInstructions(generateInstructions(screens, connections));
+    const result = generateInstructionFiles(screens, connections, { platform: platformPreference });
+    setInstructions(result);
     setShowInstructions(true);
-  }, [screens, connections]);
+  }, [screens, connections, platformPreference]);
 
   // Keyboard shortcuts: Escape cancels, Delete/Backspace removes selected connection
   useEffect(() => {
@@ -661,6 +663,8 @@ export default function FlowForge() {
         canRedo={canRedo}
         onUndo={undo}
         onRedo={redo}
+        platformPreference={platformPreference}
+        onPlatformChange={setPlatformPreference}
       />
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -718,6 +722,7 @@ export default function FlowForge() {
                 drawRect={drawRect}
                 isHotspotDragging={isHotspotDragging}
                 onUpdateDescription={updateScreenDescription}
+                onAddState={addState}
               />
             ))}
             <ConnectionLines
@@ -763,6 +768,9 @@ export default function FlowForge() {
             onRename={() => setRenameModal(selectedScreenData)}
             onAddHotspot={addHotspot}
             onEditHotspot={(hs) => setHotspotModal({ screen: selectedScreenData, hotspot: hs })}
+            onAddState={addState}
+            onSelectScreen={setSelectedScreen}
+            onUpdateStateName={updateStateName}
           />
         )}
       </div>

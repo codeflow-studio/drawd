@@ -8,6 +8,7 @@ export function mergeFlow(importedScreens, importedConnections, existingScreens)
 
   const screenIdMap = {};
   const hotspotIdMap = {};
+  const stateGroupMap = {};
 
   const newScreens = importedScreens.map((screen) => {
     const newScreenId = generateId();
@@ -19,11 +20,21 @@ export function mergeFlow(importedScreens, importedConnections, existingScreens)
       return { ...hs, id: newHsId };
     });
 
+    // Remap stateGroup IDs
+    let newStateGroup = screen.stateGroup;
+    if (newStateGroup) {
+      if (!stateGroupMap[newStateGroup]) {
+        stateGroupMap[newStateGroup] = generateId();
+      }
+      newStateGroup = stateGroupMap[newStateGroup];
+    }
+
     return {
       ...screen,
       id: newScreenId,
       x: screen.x + offsetX,
       hotspots: newHotspots,
+      stateGroup: newStateGroup,
     };
   });
 

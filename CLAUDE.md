@@ -31,9 +31,12 @@ src/
     theme.js                — COLORS, FONTS, FONT_LINK, shared style objects
   utils/
     generateId.js           — Unique ID generator (timestamp + random)
-    generateInstructions.js — AI instruction markdown generator
+    generateInstructions.js — Legacy single-string AI instruction generator (delegates to generateInstructionFiles)
+    generateInstructionFiles.js — Multi-file AI instruction generator (main.md, screens.md, navigation.md, build-guide.md)
+    analyzeNavGraph.js      — Navigation graph analysis (entry points, tab bars, modals, back loops)
+    zipBuilder.js           — Zero-dependency browser-native ZIP file creator (STORE compression)
     exportFlow.js           — Export screens/connections as .flowforge JSON file
-    importFlow.js           — Parse and validate .flowforge JSON files
+    importFlow.js           — Parse and validate .flowforge JSON files (v1, v2, v3, and v4)
     mergeFlow.js            — Remap IDs and offset positions for merge imports
 ```
 
@@ -55,17 +58,25 @@ FlowForge (src/FlowForge.jsx)
 
 ### Key Data Structures
 
-- **screens[]** — `{ id, name, x, y, width, imageData, imageWidth, imageHeight, hotspots[] }`
-- **connections[]** — `{ id, fromScreenId, toScreenId, hotspotId, label, action }`
-- **hotspot** — `{ id, label, x, y, w, h (all %), action, targetScreenId }`
+- **screens[]** — `{ id, name, x, y, width, imageData, imageWidth, imageHeight, description, hotspots[], stateGroup, stateName }`
+- **connections[]** — `{ id, fromScreenId, toScreenId, hotspotId, label, action, connectionPath }`
+- **connectionPath values**: `default`, `api-success`, `api-error`
+- **hotspot** — `{ id, label, elementType, x, y, w, h (all %), action, targetScreenId, apiEndpoint, apiMethod, customDescription, apiDocs, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc }`
+- **elementType values**: `button`, `text-input`, `toggle`, `card`, `icon`, `link`, `image`, `tab`, `list-item`, `other`
 - **Hotspot actions**: `navigate`, `back`, `modal`, `api`, `custom`
-- **.flowforge file** — `{ version: 1, metadata: { name, exportedAt, screenCount, connectionCount }, viewport: { pan, zoom }, screens[], connections[] }`
+- **api action fields**: `apiEndpoint` (string, e.g. "/api/users"), `apiMethod` ("GET"|"POST"|"PUT"|"DELETE"|"PATCH"), `apiDocs` (string, free-text API documentation)
+- **api follow-up fields**: `onSuccessAction`/`onErrorAction` ("navigate"|"back"|"modal"|"custom"|""), `onSuccessTargetId`/`onErrorTargetId` (screen ID), `onSuccessCustomDesc`/`onErrorCustomDesc` (string)
+- **custom action fields**: `customDescription` (string, free-text behavior description)
+- **.flowforge file** — `{ version: 1|2|3|4, metadata: { name, exportedAt, screenCount, connectionCount }, viewport: { pan, zoom }, screens[], connections[] }`. v2 adds elementType, apiEndpoint, apiMethod, customDescription to hotspots. v3 adds apiDocs, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc to hotspots and connectionPath to connections. v4 adds stateGroup and stateName to screens.
+- **stateGroup** — `string | null`. Shared group ID for screens that are variants of the same logical screen. `null` = standalone.
+- **stateName** — `string`. Label for the screen state (e.g., "Default", "Loading", "Error"). Empty string for standalone screens.
 
 ### Custom Hooks
 
 - **useCanvas** — Manages pan/zoom state, canvas mouse events (drag, pan, wheel zoom). Returns `{ pan, setPan, zoom, setZoom, isPanning, dragging, canvasRef, handleDragStart, handleMouseMove, handleMouseUp, handleCanvasMouseDown }`.
 - **useScreenManager(pan, zoom, canvasRef)** — Manages screens, connections, and hotspot CRUD. Returns screen/connection state, all mutation callbacks, plus `replaceAll(screens, connections, counter)` and `mergeAll(screens, connections)` for import. Also provides `moveHotspot(screenId, hotspotId, x, y)`, `updateScreenDimensions(screenId, imageWidth, imageHeight)`, `quickConnectHotspot(screenId, hotspotId, targetScreenId)` for interactive hotspot features, and `updateConnection(connectionId, patch)` / `deleteConnection(connectionId)` for direct connection manipulation. Also provides undo/redo via `canUndo`, `canRedo`, `undo()`, `redo()`, `captureDragSnapshot()`, `commitDragSnapshot()`.
   - **Screen placement**: `addScreen()` places screens on a grid layout (used by file upload and drag-and-drop). `addScreenAtCenter(imageData, name, offset)` places screens at the viewport center in world coordinates (used by paste and "Add Blank"). Multiple pasted images are staggered diagonally with `offset * 30px`.
+  - **Screen states**: `addState(parentScreenId)` creates a variant screen 250px right of parent, sharing a `stateGroup` ID. If the parent has no group yet, one is generated and the parent gets `stateName: "Default"`. `updateStateName(screenId, stateName)` updates the state label. `removeScreen()` auto-cleans: if only one screen remains in a group after deletion, its `stateGroup` and `stateName` are cleared.
 
 ### Design System
 
@@ -111,7 +122,16 @@ Colors and shared styles are in `src/styles/theme.js`:
 
 ### AI Instruction Generation
 
-`generateInstructions(screens, connections)` in `src/utils/generateInstructions.js` produces a markdown document describing all screens, hotspots, connections, and build instructions.
+- **Multi-file output**: `generateInstructionFiles(screens, connections, options)` in `src/utils/generateInstructionFiles.js` produces a structured `{ files: [{name, content}], images: [{name, data}] }` object with 4 markdown files (main.md, screens.md, navigation.md, build-guide.md) and extracted PNG images.
+- **Platform-specific**: Accepts `options.platform` ("auto"|"swiftui"|"react-native"|"flutter"|"jetpack-compose") to customize build guide with framework-specific code patterns.
+- **Navigation analysis**: Uses `analyzeNavGraph()` from `src/utils/analyzeNavGraph.js` to detect entry screens, tab bar patterns, modal screens, and back loops.
+- **Device detection**: `detectDeviceType(imageWidth, imageHeight)` maps screen dimensions to device categories (iPhone, iPad, Android, etc.).
+- **Image extraction**: Base64 `imageData` is converted to PNG files in the `images/` folder of the ZIP output.
+- **ZIP download**: `buildZip()` + `downloadZip()` from `src/utils/zipBuilder.js` create and download a ZIP file containing all instruction files and images.
+- **Legacy compat**: `generateInstructions(screens, connections)` in `src/utils/generateInstructions.js` delegates to `generateInstructionFiles` and concatenates all file contents.
+- **InstructionsPanel**: Tabbed UI showing each file, with rendered markdown view (toggle to raw), per-section copy, copy-all, and download ZIP buttons.
+- **Platform selector**: Dropdown in TopBar next to the Generate button. State managed as `platformPreference` in FlowForge.jsx.
+- **Screen descriptions**: Editable on ALL screens (not just blank ones) via the Sidebar.
 
 ## Code Conventions
 

@@ -2,14 +2,86 @@ import { useState } from "react";
 import { COLORS, styles } from "../styles/theme";
 import { generateId } from "../utils/generateId";
 
+function FollowUpSection({ title, titleColor, action, setAction, targetId, setTargetId,
+                           customDesc, setCustomDesc, otherScreens }) {
+  return (
+    <div style={{
+      border: `1px solid ${COLORS.border}`,
+      borderRadius: 8,
+      padding: 12,
+      background: "rgba(255,255,255,0.02)",
+    }}>
+      <div style={{
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        color: titleColor,
+        marginBottom: 10,
+        textTransform: "uppercase",
+      }}>
+        {title}
+      </div>
+
+      <label style={styles.monoLabel}>
+        ACTION
+        <select value={action} onChange={(e) => setAction(e.target.value)} style={styles.select}>
+          <option value="">None</option>
+          <option value="navigate">Navigate to screen</option>
+          <option value="back">Go back</option>
+          <option value="modal">Open modal/overlay</option>
+          <option value="custom">Custom action</option>
+        </select>
+      </label>
+
+      {(action === "navigate" || action === "modal") && (
+        <label style={{ ...styles.monoLabel, marginTop: 10 }}>
+          TARGET SCREEN
+          <select value={targetId} onChange={(e) => setTargetId(e.target.value)} style={styles.select}>
+            <option value="">— Select screen —</option>
+            {otherScreens.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {action === "custom" && (
+        <label style={{ ...styles.monoLabel, marginTop: 10 }}>
+          DESCRIPTION
+          <textarea
+            value={customDesc}
+            onChange={(e) => setCustomDesc(e.target.value)}
+            placeholder="Describe what happens..."
+            rows={2}
+            style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
 export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefilledRect, onSave, onDelete, onClose }) {
   const [label, setLabel] = useState(hotspot?.label || "");
+  const [elementType, setElementType] = useState(hotspot?.elementType || "button");
   const [targetId, setTargetId] = useState(hotspot?.targetScreenId || prefilledTarget || "");
   const [action, setAction] = useState(hotspot?.action || "navigate");
+  const [apiEndpoint, setApiEndpoint] = useState(hotspot?.apiEndpoint || "");
+  const [apiMethod, setApiMethod] = useState(hotspot?.apiMethod || "GET");
+  const [customDescription, setCustomDescription] = useState(hotspot?.customDescription || "");
   const [x, setX] = useState(hotspot?.x ?? prefilledRect?.x ?? 10);
   const [y, setY] = useState(hotspot?.y ?? prefilledRect?.y ?? 10);
   const [w, setW] = useState(hotspot?.w ?? prefilledRect?.w ?? 80);
   const [h, setH] = useState(hotspot?.h ?? prefilledRect?.h ?? 15);
+
+  // API follow-up fields
+  const [apiDocs, setApiDocs] = useState(hotspot?.apiDocs || "");
+  const [onSuccessAction, setOnSuccessAction] = useState(hotspot?.onSuccessAction || "");
+  const [onSuccessTargetId, setOnSuccessTargetId] = useState(hotspot?.onSuccessTargetId || "");
+  const [onSuccessCustomDesc, setOnSuccessCustomDesc] = useState(hotspot?.onSuccessCustomDesc || "");
+  const [onErrorAction, setOnErrorAction] = useState(hotspot?.onErrorAction || "");
+  const [onErrorTargetId, setOnErrorTargetId] = useState(hotspot?.onErrorTargetId || "");
+  const [onErrorCustomDesc, setOnErrorCustomDesc] = useState(hotspot?.onErrorCustomDesc || "");
 
   const otherScreens = screens.filter((s) => s.id !== screen.id);
 
@@ -17,7 +89,7 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
     <div style={styles.modalOverlay} onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ ...styles.modalCard, width: 380 }}
+        style={{ ...styles.modalCard, width: 480, maxHeight: "85vh", overflowY: "auto" }}
       >
         <h3 style={styles.modalTitle}>Configure Tap Area</h3>
 
@@ -27,8 +99,19 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
             ...hotspot,
             id: hotspot?.id || generateId(),
             label,
+            elementType,
             targetScreenId: targetId || null,
             action,
+            apiEndpoint,
+            apiMethod,
+            customDescription,
+            apiDocs,
+            onSuccessAction,
+            onSuccessTargetId: onSuccessTargetId || null,
+            onSuccessCustomDesc,
+            onErrorAction,
+            onErrorTargetId: onErrorTargetId || null,
+            onErrorCustomDesc,
             x, y, w, h,
           });
         }}>
@@ -44,6 +127,22 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
             </label>
 
             <label style={styles.monoLabel}>
+              ELEMENT TYPE
+              <select value={elementType} onChange={(e) => setElementType(e.target.value)} style={styles.select}>
+                <option value="button">Button</option>
+                <option value="text-input">Text Input</option>
+                <option value="toggle">Toggle</option>
+                <option value="card">Card</option>
+                <option value="icon">Icon</option>
+                <option value="link">Link</option>
+                <option value="image">Image</option>
+                <option value="tab">Tab</option>
+                <option value="list-item">List Item</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+
+            <label style={styles.monoLabel}>
               ACTION
               <select value={action} onChange={(e) => setAction(e.target.value)} style={styles.select}>
                 <option value="navigate">Navigate to screen</option>
@@ -53,6 +152,78 @@ export function HotspotModal({ screen, hotspot, screens, prefilledTarget, prefil
                 <option value="custom">Custom action</option>
               </select>
             </label>
+
+            {action === "api" && (
+              <>
+                <label style={styles.monoLabel}>
+                  API ENDPOINT
+                  <input
+                    value={apiEndpoint}
+                    onChange={(e) => setApiEndpoint(e.target.value)}
+                    placeholder="e.g. /api/users/login"
+                    style={styles.input}
+                  />
+                </label>
+                <label style={styles.monoLabel}>
+                  HTTP METHOD
+                  <select value={apiMethod} onChange={(e) => setApiMethod(e.target.value)} style={styles.select}>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="PATCH">PATCH</option>
+                  </select>
+                </label>
+
+                <label style={styles.monoLabel}>
+                  API DOCUMENTATION
+                  <textarea
+                    value={apiDocs}
+                    onChange={(e) => setApiDocs(e.target.value)}
+                    placeholder="Paste curl commands, OpenAPI specs, or API docs here (optional)"
+                    rows={6}
+                    style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
+                  />
+                </label>
+
+                <FollowUpSection
+                  title="On Success"
+                  titleColor={COLORS.success}
+                  action={onSuccessAction}
+                  setAction={setOnSuccessAction}
+                  targetId={onSuccessTargetId}
+                  setTargetId={setOnSuccessTargetId}
+                  customDesc={onSuccessCustomDesc}
+                  setCustomDesc={setOnSuccessCustomDesc}
+                  otherScreens={otherScreens}
+                />
+
+                <FollowUpSection
+                  title="On Error"
+                  titleColor={COLORS.danger}
+                  action={onErrorAction}
+                  setAction={setOnErrorAction}
+                  targetId={onErrorTargetId}
+                  setTargetId={setOnErrorTargetId}
+                  customDesc={onErrorCustomDesc}
+                  setCustomDesc={setOnErrorCustomDesc}
+                  otherScreens={otherScreens}
+                />
+              </>
+            )}
+
+            {action === "custom" && (
+              <label style={styles.monoLabel}>
+                DESCRIPTION
+                <textarea
+                  value={customDescription}
+                  onChange={(e) => setCustomDescription(e.target.value)}
+                  placeholder="Describe what this action does..."
+                  rows={3}
+                  style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
+                />
+              </label>
+            )}
 
             {(action === "navigate" || action === "modal") && (
               <label style={styles.monoLabel}>

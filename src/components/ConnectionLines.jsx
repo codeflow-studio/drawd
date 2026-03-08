@@ -69,6 +69,12 @@ export function ConnectionLines({
         <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
           <polygon points="0 0, 10 3.5, 0 7" fill={COLORS.accentLight} />
         </marker>
+        <marker id="arrowhead-success" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill={COLORS.success} />
+        </marker>
+        <marker id="arrowhead-error" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill={COLORS.danger} />
+        </marker>
         <filter id="glow">
           <feGaussianBlur stdDeviation="3" result="coloredBlur" />
           <feMerge>
@@ -84,12 +90,62 @@ export function ConnectionLines({
           </feMerge>
         </filter>
       </defs>
+      {/* State group connector lines (dashed, behind navigation arrows) */}
+      {(() => {
+        const groups = {};
+        screens.forEach((s) => {
+          if (s.stateGroup) {
+            if (!groups[s.stateGroup]) groups[s.stateGroup] = [];
+            groups[s.stateGroup].push(s);
+          }
+        });
+        return Object.values(groups)
+          .filter((g) => g.length >= 2)
+          .map((group) => {
+            const sorted = [...group].sort((a, b) => a.x - b.x || a.y - b.y);
+            return sorted.slice(0, -1).map((s, i) => {
+              const next = sorted[i + 1];
+              const sw = s.width || 220;
+              const nw = next.width || 220;
+              const fromX = s.x + sw;
+              const fromY = s.y + (HEADER_HEIGHT + (s.imageHeight || 120)) / 2;
+              const toX = next.x;
+              const toY = next.y + (HEADER_HEIGHT + (next.imageHeight || 120)) / 2;
+              return (
+                <line
+                  key={`state-${s.id}-${next.id}`}
+                  x1={fromX}
+                  y1={fromY}
+                  x2={toX}
+                  y2={toY}
+                  stroke="rgba(108,92,231,0.25)"
+                  strokeWidth={1.5}
+                  strokeDasharray="6 4"
+                />
+              );
+            });
+          });
+      })()}
       {connections.map((conn) => {
         const pts = computePoints(conn, screens);
         if (!pts) return null;
 
         let { fromX, fromY, toX, toY, cp } = pts;
         const isSelected = conn.id === selectedConnectionId;
+
+        // Determine color based on connectionPath
+        let lineColor = COLORS.connectionLine;
+        let lineMarker = "url(#arrowhead)";
+        let selectedMarker = "url(#arrowhead-selected)";
+        if (conn.connectionPath === "api-success") {
+          lineColor = COLORS.success;
+          lineMarker = "url(#arrowhead-success)";
+          selectedMarker = "url(#arrowhead-success)";
+        } else if (conn.connectionPath === "api-error") {
+          lineColor = COLORS.danger;
+          lineMarker = "url(#arrowhead-error)";
+          selectedMarker = "url(#arrowhead-error)";
+        }
 
         // Apply endpoint drag preview overrides
         if (endpointDragPreview && endpointDragPreview.connectionId === conn.id) {
@@ -124,7 +180,7 @@ export function ConnectionLines({
               cx={fromX}
               cy={fromY}
               r={isSelected ? 6 : 5}
-              fill={isSelected ? COLORS.accentLight : COLORS.connectionLine}
+              fill={isSelected ? COLORS.accentLight : lineColor}
               filter={isSelected ? "url(#glow-strong)" : "url(#glow)"}
               opacity={isSelected ? 1 : 0.9}
             />
@@ -132,10 +188,10 @@ export function ConnectionLines({
             <path
               d={d}
               fill="none"
-              stroke={isSelected ? COLORS.accentLight : COLORS.connectionLine}
+              stroke={isSelected ? COLORS.accentLight : lineColor}
               strokeWidth={isSelected ? 4 : 2.5}
               strokeDasharray={isSelected ? "none" : "8 4"}
-              markerEnd={isSelected ? "url(#arrowhead-selected)" : "url(#arrowhead)"}
+              markerEnd={isSelected ? selectedMarker : lineMarker}
               filter={isSelected ? "url(#glow-strong)" : "url(#glow)"}
               opacity={isSelected ? 1 : 0.7}
             />

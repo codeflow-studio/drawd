@@ -1,6 +1,6 @@
 import { COLORS, FONTS } from "../styles/theme";
 
-export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot }) {
+export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName }) {
   const incomingLinks = connections.filter((c) => c.toScreenId === screen.id);
 
   return (
@@ -71,39 +71,134 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
         </button>
       </div>
 
-      {/* Description (blank screens only) */}
-      {!screen.imageData && (
-        <div
+      {/* Description */}
+      <div
+        style={{
+          padding: "10px 12px",
+          background: COLORS.bg,
+          borderRadius: 8,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{
+          fontSize: 10,
+          color: COLORS.textMuted,
+          fontFamily: FONTS.mono,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          marginBottom: 6,
+        }}>
+          Description
+        </div>
+        <div style={{
+          fontSize: 11,
+          color: screen.description ? COLORS.textMuted : COLORS.textDim,
+          fontFamily: FONTS.mono,
+          fontStyle: screen.description ? "normal" : "italic",
+          lineHeight: 1.5,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}>
+          {screen.description || "No description added"}
+        </div>
+      </div>
+
+      {/* Screen States */}
+      <div
+        style={{
+          padding: "10px 12px",
+          background: COLORS.bg,
+          borderRadius: 8,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{
+          fontSize: 10,
+          color: COLORS.textMuted,
+          fontFamily: FONTS.mono,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          marginBottom: 6,
+        }}>
+          Screen States
+        </div>
+        {screen.stateGroup ? (() => {
+          const siblings = screens.filter((s) => s.stateGroup === screen.stateGroup && s.id !== screen.id);
+          return (
+            <>
+              <div style={{ marginBottom: 6 }}>
+                <label style={{ fontSize: 10, color: COLORS.textDim, fontFamily: FONTS.mono }}>
+                  Current state name
+                </label>
+                <input
+                  type="text"
+                  value={screen.stateName}
+                  onChange={(e) => onUpdateStateName?.(screen.id, e.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 3,
+                    padding: "4px 8px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: `1px solid ${COLORS.border}`,
+                    borderRadius: 6,
+                    color: COLORS.text,
+                    fontSize: 11,
+                    fontFamily: FONTS.mono,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              {siblings.map((s) => (
+                <div
+                  key={s.id}
+                  onClick={() => onSelectScreen?.(s.id)}
+                  style={{
+                    padding: "6px 10px",
+                    background: "rgba(108,92,231,0.05)",
+                    border: `1px solid ${COLORS.border}`,
+                    borderRadius: 6,
+                    marginBottom: 4,
+                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    transition: "border-color 0.2s",
+                  }}
+                >
+                  <span style={{ fontSize: 11, color: COLORS.text, fontFamily: FONTS.mono }}>
+                    {s.stateName || s.name}
+                  </span>
+                  <span style={{ fontSize: 9, color: COLORS.textDim, fontFamily: FONTS.mono }}>
+                    &rarr;
+                  </span>
+                </div>
+              ))}
+            </>
+          );
+        })() : (
+          <div style={{ fontSize: 11, color: COLORS.textDim, fontFamily: FONTS.mono, fontStyle: "italic" }}>
+            No states defined
+          </div>
+        )}
+        <button
+          onClick={() => onAddState?.(screen.id)}
           style={{
-            padding: "10px 12px",
-            background: COLORS.bg,
-            borderRadius: 8,
-            marginBottom: 12,
+            width: "100%",
+            padding: "6px 0",
+            marginTop: 6,
+            background: "rgba(108,92,231,0.08)",
+            border: "1px dashed rgba(108,92,231,0.3)",
+            borderRadius: 6,
+            color: COLORS.accentLight,
+            fontSize: 11,
+            cursor: "pointer",
+            fontFamily: FONTS.mono,
           }}
         >
-          <div style={{
-            fontSize: 10,
-            color: COLORS.textMuted,
-            fontFamily: FONTS.mono,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            marginBottom: 6,
-          }}>
-            Description
-          </div>
-          <div style={{
-            fontSize: 11,
-            color: screen.description ? COLORS.textMuted : COLORS.textDim,
-            fontFamily: FONTS.mono,
-            fontStyle: screen.description ? "normal" : "italic",
-            lineHeight: 1.5,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}>
-            {screen.description || "No description added"}
-          </div>
-        </div>
-      )}
+          + Add State
+        </button>
+      </div>
 
       {/* Hotspots list */}
       <h5
@@ -139,8 +234,29 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
               {hs.label || "Unnamed"}
             </div>
             <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 4, fontFamily: FONTS.mono }}>
-              {hs.action} &rarr; {target?.name || "none"}
+              {hs.action === "api"
+                ? `api: ${hs.apiMethod || "GET"} ${hs.apiEndpoint || "/endpoint"}`
+                : <>{hs.action} &rarr; {target?.name || "none"}</>
+              }
             </div>
+            {hs.action === "api" && hs.onSuccessAction && (
+              <div style={{ fontSize: 9, color: COLORS.success, marginTop: 3, fontFamily: FONTS.mono }}>
+                on success: {hs.onSuccessAction}
+                {hs.onSuccessTargetId && (() => {
+                  const t = screens.find((s) => s.id === hs.onSuccessTargetId);
+                  return t ? ` \u2192 ${t.name}` : "";
+                })()}
+              </div>
+            )}
+            {hs.action === "api" && hs.onErrorAction && (
+              <div style={{ fontSize: 9, color: COLORS.danger, marginTop: 2, fontFamily: FONTS.mono }}>
+                on error: {hs.onErrorAction}
+                {hs.onErrorTargetId && (() => {
+                  const t = screens.find((s) => s.id === hs.onErrorTargetId);
+                  return t ? ` \u2192 ${t.name}` : "";
+                })()}
+              </div>
+            )}
           </div>
         );
       })}

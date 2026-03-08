@@ -1,6 +1,6 @@
 export function exportFlow(screens, connections, pan, zoom) {
   const payload = {
-    version: 1,
+    version: 4,
     metadata: {
       name: "Untitled Flow",
       exportedAt: new Date().toISOString(),
