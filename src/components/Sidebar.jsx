@@ -1,6 +1,17 @@
 import { COLORS, FONTS } from "../styles/theme";
 
-export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName }) {
+import { useState } from "react";
+
+export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName, onUpdateNotes }) {
+  const [draftNotes, setDraftNotes] = useState(screen.notes || "");
+  const [notesScreenId, setNotesScreenId] = useState(screen.id);
+
+  // Reset draft when screen changes
+  if (screen.id !== notesScreenId) {
+    setDraftNotes(screen.notes || "");
+    setNotesScreenId(screen.id);
+  }
+
   const incomingLinks = connections.filter((c) => c.toScreenId === screen.id);
 
   return (
@@ -101,6 +112,52 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
         }}>
           {screen.description || "No description added"}
         </div>
+      </div>
+
+      {/* Implementation Notes */}
+      <div
+        style={{
+          padding: "10px 12px",
+          background: COLORS.bg,
+          borderRadius: 8,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{
+          fontSize: 10,
+          color: COLORS.textMuted,
+          fontFamily: FONTS.mono,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          marginBottom: 6,
+        }}>
+          Implementation Notes
+        </div>
+        <textarea
+          value={draftNotes}
+          onChange={(e) => setDraftNotes(e.target.value)}
+          onBlur={() => {
+            if (draftNotes !== (screen.notes || "")) {
+              onUpdateNotes?.(screen.id, draftNotes);
+            }
+          }}
+          placeholder="Add implementation notes, technical context..."
+          rows={3}
+          style={{
+            width: "100%",
+            padding: "8px 10px",
+            background: "rgba(255,255,255,0.05)",
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 6,
+            color: COLORS.text,
+            fontSize: 11,
+            fontFamily: FONTS.mono,
+            outline: "none",
+            boxSizing: "border-box",
+            resize: "vertical",
+            lineHeight: 1.5,
+          }}
+        />
       </div>
 
       {/* Screen States */}

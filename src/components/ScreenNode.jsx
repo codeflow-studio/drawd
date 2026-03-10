@@ -4,7 +4,8 @@ import { COLORS, FONTS } from "../styles/theme";
 export function ScreenNode({
   screen, selected, onSelect, onDragStart, onAddHotspot, onRemoveScreen,
   onDotDragStart, onConnectTarget, onHoverTarget, isConnectHoverTarget, isConnecting,
-  selectedHotspotId, onHotspotMouseDown, onImageAreaMouseDown, onHotspotDragHandleMouseDown,
+  selectedHotspotId, selectedHotspotIds, onHotspotMouseDown, onImageAreaMouseDown,
+  onHotspotDragHandleMouseDown,
   onResizeHandleMouseDown, onScreenDimensions, drawRect, isHotspotDragging,
   onUpdateDescription, isSpaceHeld, onAddState, onDropImage,
 }) {
@@ -228,6 +229,7 @@ export function ScreenNode({
             />
             {(screen.hotspots || []).map((hs) => {
               const isSelected = hs.id === selectedHotspotId;
+              const isMultiSelected = selectedHotspotIds?.has(hs.id);
               return (
                 <div
                   key={hs.id}
@@ -242,12 +244,16 @@ export function ScreenNode({
                     top: `${hs.y}%`,
                     width: `${hs.w}%`,
                     height: `${hs.h}%`,
-                    background: isSelected
-                      ? "rgba(108,92,231,0.3)"
-                      : hs.targetScreenId ? "rgba(0,210,211,0.15)" : COLORS.hotspot,
-                    border: isSelected
-                      ? `2px solid ${COLORS.accent}`
-                      : `2px dashed ${hs.targetScreenId ? COLORS.success : COLORS.hotspotBorder}`,
+                    background: isMultiSelected
+                      ? "rgba(254,202,87,0.2)"
+                      : isSelected
+                        ? "rgba(108,92,231,0.3)"
+                        : hs.targetScreenId ? "rgba(0,210,211,0.15)" : COLORS.hotspot,
+                    border: isMultiSelected
+                      ? `2px dashed ${COLORS.warning}`
+                      : isSelected
+                        ? `2px solid ${COLORS.accent}`
+                        : `2px dashed ${hs.targetScreenId ? COLORS.success : COLORS.hotspotBorder}`,
                     borderRadius: 6,
                     cursor: altHeld ? "crosshair" : isSelected ? "grab" : "pointer",
                     display: "flex",
@@ -258,7 +264,9 @@ export function ScreenNode({
                     fontFamily: FONTS.mono,
                     fontWeight: 600,
                     textShadow: "0 1px 3px rgba(0,0,0,0.8)",
-                    boxShadow: isSelected ? `0 0 12px ${COLORS.accentGlow}` : "none",
+                    boxShadow: isMultiSelected
+                      ? `0 0 10px rgba(254,202,87,0.3)`
+                      : isSelected ? `0 0 12px ${COLORS.accentGlow}` : "none",
                   }}
                   title={hs.label || "Tap area"}
                 >

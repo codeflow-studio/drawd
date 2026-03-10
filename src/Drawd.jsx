@@ -20,6 +20,8 @@ import { Sidebar } from "./components/Sidebar";
 import { EmptyState } from "./components/EmptyState";
 import { ConditionalPrompt } from "./components/ConditionalPrompt";
 import { InlineConditionLabels } from "./components/InlineConditionLabels";
+import { ShortcutsPanel } from "./components/ShortcutsPanel";
+import { BatchHotspotBar } from "./components/BatchHotspotBar";
 
 const HEADER_HEIGHT = 37;
 
@@ -29,8 +31,9 @@ export default function Drawd() {
     screens, connections, documents, selectedScreen, setSelectedScreen,
     fileInputRef, addScreen, addScreenAtCenter, removeScreen, renameScreen, moveScreen,
     handleImageUpload, onFileChange, handlePaste, handleCanvasDrop,
-    saveHotspot, deleteHotspot, moveHotspot, resizeHotspot, updateScreenDimensions,
-    updateScreenDescription, assignScreenImage, quickConnectHotspot, updateConnection, deleteConnection,
+    saveHotspot, deleteHotspot, deleteHotspots, moveHotspot, resizeHotspot, updateScreenDimensions,
+    updateScreenDescription, updateScreenNotes, assignScreenImage, quickConnectHotspot, updateConnection, deleteConnection,
+    pasteHotspots,
     addConnection, convertToConditionalGroup, addToConditionalGroup, saveConnectionGroup, deleteConnectionGroup,
     addState, updateStateName, addDocument, updateDocument, deleteDocument,
     replaceAll, mergeAll,
@@ -96,6 +99,13 @@ export default function Drawd() {
   // Conditional branch drag-to-create state
   const [conditionalPrompt, setConditionalPrompt] = useState(null);
   const [editingConditionGroup, setEditingConditionGroup] = useState(null);
+
+  // Shortcuts panel
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Batch hotspot selection
+  const [selectedHotspots, setSelectedHotspots] = useState([]);
+  const hotspotClipboard = useRef(null);
 
   const cancelConnecting = useCallback(() => {
     setConnecting(null);
@@ -183,7 +193,7 @@ export default function Drawd() {
     cancelConnecting();
   }, [connecting, cancelConnecting, hotspotInteraction, quickConnectHotspot, addConnection, connections, screens, addToConditionalGroup]);
 
-  // Hotspot mouse down: Alt+drag to connect, select, or begin reposition
+  // Hotspot mouse down: Alt+drag to connect, Shift+click to multi-select, select, or begin reposition
   const onHotspotMouseDown = useCallback((e, screenId, hotspotId) => {
     e.preventDefault();
     // Alt/Option + mousedown: immediately start hotspot-drag to connect
@@ -191,6 +201,7 @@ export default function Drawd() {
       const rect = canvasRef.current.getBoundingClientRect();
       const mouseX = (e.clientX - rect.left - pan.x) / zoom;
       const mouseY = (e.clientY - rect.top - pan.y) / zoom;
+      setSelectedHotspots([]);
       setHotspotInteraction({
         mode: "hotspot-drag",
         screenId,
@@ -199,6 +210,27 @@ export default function Drawd() {
         mouseY,
       });
       return;
+    }
+    // Shift+click: toggle multi-select (same-screen constraint)
+    if (e.shiftKey) {
+      setSelectedHotspots((prev) => {
+        // If selecting from a different screen, start fresh
+        if (prev.length > 0 && prev[0].screenId !== screenId) {
+          return [{ screenId, hotspotId }];
+        }
+        const exists = prev.find((h) => h.hotspotId === hotspotId);
+        if (exists) {
+          return prev.filter((h) => h.hotspotId !== hotspotId);
+        }
+        return [...prev, { screenId, hotspotId }];
+      });
+      setHotspotInteraction(null);
+      setSelectedConnection(null);
+      return;
+    }
+    // Clear multi-select on non-shift click
+    if (selectedHotspots.length > 0) {
+      setSelectedHotspots([]);
     }
     if (hotspotInteraction?.mode === "selected" && hotspotInteraction.hotspotId === hotspotId) {
       // Same hotspot selected again -> begin reposition
@@ -221,7 +253,7 @@ export default function Drawd() {
       // Select this hotspot
       setHotspotInteraction({ mode: "selected", screenId, hotspotId });
     }
-  }, [hotspotInteraction, canvasRef, screens, captureDragSnapshot, pan, zoom]);
+  }, [hotspotInteraction, canvasRef, screens, captureDragSnapshot, pan, zoom, selectedHotspots]);
 
   // Image area mouse down: begin draw
   const onImageAreaMouseDown = useCallback((e, screenId) => {
@@ -362,6 +394,8 @@ export default function Drawd() {
     }
     // Clear selected connection on canvas click
     if (selectedConnection) setSelectedConnection(null);
+    // Clear batch hotspot selection
+    if (selectedHotspots.length > 0) setSelectedHotspots([]);
     // Cancel hotspot interaction on canvas click
     if (hotspotInteraction && hotspotInteraction.mode !== "draw" && hotspotInteraction.mode !== "reposition" && hotspotInteraction.mode !== "hotspot-drag" && hotspotInteraction.mode !== "resize" && hotspotInteraction.mode !== "conn-endpoint-drag") {
       setHotspotInteraction(null);
@@ -377,7 +411,7 @@ export default function Drawd() {
     }
     const wasPan = handleCanvasMouseDown(e);
     if (wasPan) setSelectedScreen(null);
-  }, [handleCanvasMouseDown, setSelectedScreen, connecting, cancelConnecting, hotspotInteraction, selectedConnection, isSpaceHeld, conditionalPrompt, onConditionalPromptCancel, editingConditionGroup]);
+  }, [handleCanvasMouseDown, setSelectedScreen, connecting, cancelConnecting, hotspotInteraction, selectedConnection, isSpaceHeld, conditionalPrompt, onConditionalPromptCancel, editingConditionGroup, selectedHotspots]);
 
   const onCanvasMouseMove = useCallback((e) => {
     // Handle hotspot interactions
@@ -677,9 +711,25 @@ export default function Drawd() {
   // Keyboard shortcuts: Escape cancels, Delete/Backspace removes selected connection
   useEffect(() => {
     const onKeyDown = (e) => {
-      const anyModalOpen = !!(hotspotModal || connectionEditModal || renameModal || importConfirm || showInstructions || showDocuments || conditionalPrompt || editingConditionGroup);
+      const anyModalOpen = !!(hotspotModal || connectionEditModal || renameModal || importConfirm || showInstructions || showDocuments || conditionalPrompt || editingConditionGroup || showShortcuts);
+
+      // Toggle shortcuts panel with ?
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        setShowShortcuts((prev) => !prev);
+        return;
+      }
 
       if (e.key === "Escape") {
+        if (showShortcuts) {
+          setShowShortcuts(false);
+          return;
+        }
+        if (selectedHotspots.length > 0) {
+          setSelectedHotspots([]);
+          return;
+        }
         if (conditionalPrompt) {
           setConditionalPrompt(null);
           return;
@@ -700,6 +750,15 @@ export default function Drawd() {
         const tag = document.activeElement?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
         if (anyModalOpen) return;
+        // Batch hotspot delete
+        if (selectedHotspots.length > 0) {
+          e.preventDefault();
+          const screenId = selectedHotspots[0].screenId;
+          const ids = selectedHotspots.map((h) => h.hotspotId);
+          deleteHotspots(screenId, ids);
+          setSelectedHotspots([]);
+          return;
+        }
         if (selectedConnection) {
           e.preventDefault();
           const selConn = connections.find((c) => c.id === selectedConnection);
@@ -750,7 +809,7 @@ export default function Drawd() {
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [connecting, cancelConnecting, hotspotInteraction, cancelHotspotInteraction, selectedConnection, connections, deleteConnection, deleteConnectionGroup, selectedScreen, removeScreen, hotspotModal, connectionEditModal, renameModal, importConfirm, showInstructions, showDocuments, undo, redo, saveNow, isFileSystemSupported, onSaveAs, onExport, onOpen, conditionalPrompt, editingConditionGroup]);
+  }, [connecting, cancelConnecting, hotspotInteraction, cancelHotspotInteraction, selectedConnection, connections, deleteConnection, deleteConnectionGroup, selectedScreen, removeScreen, hotspotModal, connectionEditModal, renameModal, importConfirm, showInstructions, showDocuments, showShortcuts, undo, redo, saveNow, isFileSystemSupported, onSaveAs, onExport, onOpen, conditionalPrompt, editingConditionGroup, selectedHotspots, deleteHotspots]);
 
   useEffect(() => {
     const onPaste = (e) => {
@@ -888,6 +947,9 @@ export default function Drawd() {
                 isConnectHoverTarget={hoverTarget === screen.id}
                 isConnecting={!!connecting}
                 selectedHotspotId={hotspotInteraction?.screenId === screen.id ? selectedHotspotId : null}
+                selectedHotspotIds={selectedHotspots.length > 0 && selectedHotspots[0].screenId === screen.id
+                  ? new Set(selectedHotspots.map((h) => h.hotspotId))
+                  : null}
                 onHotspotMouseDown={onHotspotMouseDown}
                 onImageAreaMouseDown={onImageAreaMouseDown}
                 onHotspotDragHandleMouseDown={onHotspotDragHandleMouseDown}
@@ -963,6 +1025,7 @@ export default function Drawd() {
             onAddState={addState}
             onSelectScreen={setSelectedScreen}
             onUpdateStateName={updateStateName}
+            onUpdateNotes={updateScreenNotes}
           />
         )}
       </div>
@@ -1056,6 +1119,36 @@ export default function Drawd() {
           onReplace={onImportReplace}
           onMerge={onImportMerge}
           onClose={() => setImportConfirm(null)}
+        />
+      )}
+
+      {showShortcuts && (
+        <ShortcutsPanel onClose={() => setShowShortcuts(false)} />
+      )}
+
+      {selectedHotspots.length > 0 && (
+        <BatchHotspotBar
+          count={selectedHotspots.length}
+          hasClipboard={!!hotspotClipboard.current}
+          onCopy={() => {
+            const screenId = selectedHotspots[0].screenId;
+            const screen = screens.find((s) => s.id === screenId);
+            if (!screen) return;
+            const ids = new Set(selectedHotspots.map((h) => h.hotspotId));
+            hotspotClipboard.current = screen.hotspots.filter((h) => ids.has(h.id));
+          }}
+          onPaste={() => {
+            if (!hotspotClipboard.current || !selectedScreen) return;
+            pasteHotspots(selectedScreen, hotspotClipboard.current);
+            setSelectedHotspots([]);
+          }}
+          onDelete={() => {
+            const screenId = selectedHotspots[0].screenId;
+            const ids = selectedHotspots.map((h) => h.hotspotId);
+            deleteHotspots(screenId, ids);
+            setSelectedHotspots([]);
+          }}
+          onCancel={() => setSelectedHotspots([])}
         />
       )}
     </div>

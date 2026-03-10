@@ -259,6 +259,10 @@ function generateScreenDetailMd(s, screens, images, documents = []) {
     md += `${s.description}\n\n`;
   }
 
+  if (s.notes) {
+    md += `> **Implementation Notes:** ${s.notes}\n\n`;
+  }
+
   const device = detectDeviceType(s.imageWidth, s.imageHeight);
   if (device) {
     md += `**Device:** ${device}\n\n`;

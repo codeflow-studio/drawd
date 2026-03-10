@@ -35,6 +35,7 @@ export function importFlow(fileText) {
   for (const screen of data.screens) {
     if (screen.stateGroup === undefined) screen.stateGroup = null;
     if (screen.stateName === undefined) screen.stateName = "";
+    if (screen.notes === undefined) screen.notes = "";
     if (Array.isArray(screen.hotspots)) {
       for (const hs of screen.hotspots) {
         if (!hs.elementType) hs.elementType = "button";

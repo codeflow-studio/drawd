@@ -99,6 +99,7 @@ export function useScreenManager(pan, zoom, canvasRef) {
       width: 220,
       imageData,
       description: "",
+      notes: "",
       hotspots: [],
       stateGroup: null,
       stateName: "",
@@ -125,6 +126,7 @@ export function useScreenManager(pan, zoom, canvasRef) {
       width: screenWidth,
       imageData,
       description: "",
+      notes: "",
       hotspots: [],
       stateGroup: null,
       stateName: "",
@@ -165,6 +167,11 @@ export function useScreenManager(pan, zoom, canvasRef) {
   const updateScreenDescription = useCallback((id, description) => {
     pushHistory(screens, connections, documents);
     setScreens((prev) => prev.map((s) => (s.id === id ? { ...s, description } : s)));
+  }, [screens, connections, documents, pushHistory]);
+
+  const updateScreenNotes = useCallback((id, notes) => {
+    pushHistory(screens, connections, documents);
+    setScreens((prev) => prev.map((s) => (s.id === id ? { ...s, notes } : s)));
   }, [screens, connections, documents, pushHistory]);
 
   const assignScreenImage = useCallback((id, imageData) => {
@@ -361,6 +368,33 @@ export function useScreenManager(pan, zoom, canvasRef) {
       )
     );
     setConnections((prev) => prev.filter((c) => c.hotspotId !== hotspotId));
+  }, [screens, connections, documents, pushHistory]);
+
+  const deleteHotspots = useCallback((screenId, hotspotIds) => {
+    pushHistory(screens, connections, documents);
+    const idSet = new Set(hotspotIds);
+    setScreens((prev) =>
+      prev.map((s) =>
+        s.id === screenId ? { ...s, hotspots: s.hotspots.filter((h) => !idSet.has(h.id)) } : s
+      )
+    );
+    setConnections((prev) => prev.filter((c) => !idSet.has(c.hotspotId)));
+  }, [screens, connections, documents, pushHistory]);
+
+  const pasteHotspots = useCallback((screenId, hotspots) => {
+    pushHistory(screens, connections, documents);
+    const newHotspots = hotspots.map((hs) => ({
+      ...hs,
+      id: generateId(),
+      targetScreenId: null,
+      x: Math.min(hs.x + 5, 100 - hs.w),
+      y: Math.min(hs.y + 5, 100 - hs.h),
+    }));
+    setScreens((prev) =>
+      prev.map((s) =>
+        s.id === screenId ? { ...s, hotspots: [...s.hotspots, ...newHotspots] } : s
+      )
+    );
   }, [screens, connections, documents, pushHistory]);
 
   const moveHotspot = useCallback((screenId, hotspotId, newX, newY) => {
@@ -592,6 +626,7 @@ export function useScreenManager(pan, zoom, canvasRef) {
       width: parent.width || 220,
       imageData: null,
       description: "",
+      notes: "",
       hotspots: [],
       stateGroup: groupId,
       stateName: `State ${stateNumber - 1}`,
@@ -666,10 +701,13 @@ export function useScreenManager(pan, zoom, canvasRef) {
     handleCanvasDrop,
     saveHotspot,
     deleteHotspot,
+    deleteHotspots,
+    pasteHotspots,
     moveHotspot,
     resizeHotspot,
     updateScreenDimensions,
     updateScreenDescription,
+    updateScreenNotes,
     assignScreenImage,
     quickConnectHotspot,
     updateConnection,

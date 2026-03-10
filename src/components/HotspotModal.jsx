@@ -61,7 +61,25 @@ function FollowUpSection({ title, titleColor, action, setAction, targetId, setTa
   );
 }
 
+function loadPresets() {
+  try {
+    const raw = localStorage.getItem("drawd-hotspot-presets");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePresetsToStorage(presets) {
+  try {
+    localStorage.setItem("drawd-hotspot-presets", JSON.stringify(presets));
+  } catch {
+    // Private browsing or quota exceeded
+  }
+}
+
 export function HotspotModal({ screen, hotspot, screens, documents = [], onAddDocument, prefilledTarget, prefilledRect, onSave, onDelete, onClose }) {
+  const [presets, setPresets] = useState(loadPresets);
   const [label, setLabel] = useState(hotspot?.label || "");
   const [elementType, setElementType] = useState(hotspot?.elementType || "button");
   const [targetId, setTargetId] = useState(hotspot?.targetScreenId || prefilledTarget || "");
@@ -121,6 +139,92 @@ export function HotspotModal({ screen, hotspot, screens, documents = [], onAddDo
         style={{ ...styles.modalCard, width: 480, maxHeight: "85vh", overflowY: "auto" }}
       >
         <h3 style={styles.modalTitle}>Configure Tap Area</h3>
+
+        {/* Presets row */}
+        <div style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 16,
+          alignItems: "center",
+        }}>
+          <select
+            value=""
+            onChange={(e) => {
+              const preset = presets.find((p) => p.id === e.target.value);
+              if (!preset) return;
+              setLabel(preset.label || "");
+              setElementType(preset.elementType || "button");
+              setAction(preset.action || "navigate");
+              setW(preset.w ?? w);
+              setH(preset.h ?? h);
+              if (preset.customDescription) setCustomDescription(preset.customDescription);
+            }}
+            style={{ ...styles.select, flex: 1, marginTop: 0 }}
+          >
+            <option value="">-- Apply Preset --</option>
+            {presets.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              const name = prompt("Preset name:");
+              if (!name?.trim()) return;
+              const preset = {
+                id: generateId(),
+                name: name.trim(),
+                label,
+                elementType,
+                action,
+                w,
+                h,
+                customDescription,
+              };
+              const updated = [...presets, preset];
+              setPresets(updated);
+              savePresetsToStorage(updated);
+            }}
+            style={{
+              padding: "8px 14px",
+              background: "rgba(108,92,231,0.1)",
+              border: `1px solid rgba(108,92,231,0.25)`,
+              borderRadius: 8,
+              color: COLORS.accentLight,
+              fontSize: 11,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Save Preset
+          </button>
+          {presets.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const name = prompt("Delete which preset? Enter name:");
+                if (!name?.trim()) return;
+                const updated = presets.filter((p) => p.name.toLowerCase() !== name.trim().toLowerCase());
+                setPresets(updated);
+                savePresetsToStorage(updated);
+              }}
+              style={{
+                padding: "8px 10px",
+                background: "rgba(255,107,107,0.08)",
+                border: `1px solid rgba(255,107,107,0.2)`,
+                borderRadius: 8,
+                color: COLORS.danger,
+                fontSize: 11,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Del
+            </button>
+          )}
+        </div>
 
         <form onSubmit={(e) => {
           e.preventDefault();
