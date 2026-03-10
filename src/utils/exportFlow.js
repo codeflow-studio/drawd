@@ -10,7 +10,7 @@ export function exportFlow(screens, connections, pan, zoom, documents = []) {
   const timestamp = Date.now();
   const a = document.createElement("a");
   a.href = url;
-  a.download = `flow-export-${timestamp}.flowforge`;
+  a.download = `flow-export-${timestamp}.drawd`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

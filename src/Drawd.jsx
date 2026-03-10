@@ -23,7 +23,7 @@ import { InlineConditionLabels } from "./components/InlineConditionLabels";
 
 const HEADER_HEIGHT = 37;
 
-export default function FlowForge() {
+export default function Drawd() {
   const { pan, setPan, zoom, setZoom, isPanning, dragging, canvasRef, isSpaceHeld, spaceHeld, handleDragStart, handleMouseMove, handleMouseUp, handleCanvasMouseDown } = useCanvas();
   const {
     screens, connections, documents, selectedScreen, setSelectedScreen,
@@ -979,7 +979,7 @@ export default function FlowForge() {
       <input
         ref={importFileRef}
         type="file"
-        accept=".flowforge"
+        accept=".drawd,.flowforge"
         style={{ display: "none" }}
         onChange={onImportFileChange}
       />

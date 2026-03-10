@@ -79,7 +79,7 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
             color: "#fff",
           }}
         >
-          F
+          D
         </div>
         <span
           style={{
@@ -90,7 +90,7 @@ export function TopBar({ screenCount, connectionCount, onUpload, onAddBlank, onE
             letterSpacing: "-0.02em",
           }}
         >
-          FlowForge
+          Drawd
         </span>
         <span
           style={{

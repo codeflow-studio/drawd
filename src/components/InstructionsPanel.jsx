@@ -108,7 +108,7 @@ export function InstructionsPanel({ instructions, onClose }) {
       ...images.map(img => ({ name: img.name, content: img.data })),
     ];
     const blob = buildZip(zipFiles);
-    downloadZip(blob, "flowforge-instructions.zip");
+    downloadZip(blob, "drawd-instructions.zip");
   }, [files, images]);
 
   return (

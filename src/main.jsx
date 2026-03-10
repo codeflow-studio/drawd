@@ -1,4 +1,4 @@
 import { createRoot } from "react-dom/client";
-import FlowForge from "./FlowForge";
+import Drawd from "./Drawd";
 
-createRoot(document.getElementById("root")).render(<FlowForge />);
+createRoot(document.getElementById("root")).render(<Drawd />);

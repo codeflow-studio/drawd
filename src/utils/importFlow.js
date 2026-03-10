@@ -14,7 +14,7 @@ export function importFlow(fileText) {
 
   if (data.version > 6) {
     throw new Error(
-      `Unsupported file version ${data.version}. Please update FlowForge to open this file.`
+      `Unsupported file version ${data.version}. Please update Drawd to open this file.`
     );
   }
 

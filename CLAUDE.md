@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FlowForge is a visual **mobile app flow designer** — a React application that lets users design app navigation flows by uploading screen images, placing them on an infinite canvas, defining interactive hotspots/tap areas, connecting screens with navigation links, and generating AI build instructions from the resulting flow.
+Drawd is a visual **mobile app flow designer** — a React application that lets users design app navigation flows by uploading screen images, placing them on an infinite canvas, defining interactive hotspots/tap areas, connecting screens with navigation links, and generating AI build instructions from the resulting flow.
 
 ## Architecture
 
 ### Project Structure
 
 ```
-flowforge.jsx              — Re-export entry point (backwards compat)
+drawd.jsx                  — Re-export entry point (backwards compat)
 src/
-  FlowForge.jsx            — Main component (orchestrator)
+  Drawd.jsx                — Main component (orchestrator)
   components/
     ScreenNode.jsx          — Draggable screen card with image, hotspots, action buttons
     ConnectionLines.jsx     — SVG layer rendering interactive navigation arrows between screens
@@ -31,7 +31,7 @@ src/
   hooks/
     useCanvas.js            — Pan, zoom, and drag logic
     useScreenManager.js     — Screen/connection/hotspot CRUD state
-    useFilePersistence.js   — Auto-save to connected .flowforge file via File System Access API
+    useFilePersistence.js   — Auto-save to connected .drawd file via File System Access API
   styles/
     theme.js                — COLORS, FONTS, FONT_LINK, shared style objects
   utils/
@@ -40,16 +40,16 @@ src/
     generateInstructionFiles.js — Multi-file AI instruction generator (main.md, screens.md, navigation.md, build-guide.md, documents.md)
     analyzeNavGraph.js      — Navigation graph analysis (entry points, tab bars, modals, back loops)
     zipBuilder.js           — Zero-dependency browser-native ZIP file creator (STORE compression)
-    buildPayload.js         — Pure function to construct .flowforge JSON payload (used by export and auto-save)
-    exportFlow.js           — Export screens/connections/documents as .flowforge JSON file
-    importFlow.js           — Parse and validate .flowforge JSON files (v1, v2, v3, v4, v5, and v6)
+    buildPayload.js         — Pure function to construct .drawd JSON payload (used by export and auto-save)
+    exportFlow.js           — Export screens/connections/documents as .drawd JSON file
+    importFlow.js           — Parse and validate .drawd JSON files (v1, v2, v3, v4, v5, and v6)
     mergeFlow.js            — Remap IDs and offset positions for merge imports
 ```
 
 ### Component Hierarchy
 
 ```
-FlowForge (src/FlowForge.jsx)
+Drawd (src/Drawd.jsx)
   ├── TopBar — Toolbar: File dropdown (New/Open/Save As/Import/Export), upload, add blank, generate
   ├── Canvas area
   │   ├── ConnectionLines — SVG bezier arrows between screens
@@ -81,7 +81,7 @@ FlowForge (src/FlowForge.jsx)
 - **api follow-up fields**: `onSuccessAction`/`onErrorAction` ("navigate"|"back"|"modal"|"custom"|""), `onSuccessTargetId`/`onErrorTargetId` (screen ID), `onSuccessCustomDesc`/`onErrorCustomDesc` (string)
 - **conditional action fields**: `conditions` (array of `{ id, label, targetScreenId }` — each branch defines a condition text and target screen)
 - **custom action fields**: `customDescription` (string, free-text behavior description)
-- **.flowforge file** — `{ version: 1|2|3|4|5|6, metadata: { name, exportedAt, screenCount, connectionCount, documentCount }, viewport: { pan, zoom }, screens[], connections[], documents[] }`. v2 adds elementType, apiEndpoint, apiMethod, customDescription to hotspots. v3 adds apiDocs, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc to hotspots and connectionPath to connections. v4 adds stateGroup and stateName to screens. v5 replaces inline apiDocs with top-level documents[] and documentId references on hotspots. v6 adds conditions[] to hotspots (conditional branching) and condition field to connections.
+- **.drawd file** — `{ version: 1|2|3|4|5|6, metadata: { name, exportedAt, screenCount, connectionCount, documentCount }, viewport: { pan, zoom }, screens[], connections[], documents[] }`. v2 adds elementType, apiEndpoint, apiMethod, customDescription to hotspots. v3 adds apiDocs, onSuccessAction, onSuccessTargetId, onSuccessCustomDesc, onErrorAction, onErrorTargetId, onErrorCustomDesc to hotspots and connectionPath to connections. v4 adds stateGroup and stateName to screens. v5 replaces inline apiDocs with top-level documents[] and documentId references on hotspots. v6 adds conditions[] to hotspots (conditional branching) and condition field to connections.
 - **stateGroup** — `string | null`. Shared group ID for screens that are variants of the same logical screen. `null` = standalone.
 - **stateName** — `string`. Label for the screen state (e.g., "Default", "Loading", "Error"). Empty string for standalone screens.
 
@@ -111,7 +111,7 @@ Colors and shared styles are in `src/styles/theme.js`:
 - **Draw tap areas**: Click-and-drag on screen image to draw a rectangle. On release, HotspotModal opens with pre-filled x/y/w/h percentages. Min size guard: 2% w and h.
 - **Select and reposition**: Click a hotspot to select it (purple highlight + glow). Click again to begin drag-reposition within image bounds.
 - **Drag-from-hotspot to connect**: Drag from a selected hotspot's green handle (right edge) to another screen to create a navigation connection without modal. Preview line renders in success color.
-- **hotspotInteraction state** in FlowForge.jsx: `{ mode: "selected"|"draw"|"reposition"|"hotspot-drag"|"resize"|"conn-endpoint-drag", screenId, hotspotId, ... }`
+- **hotspotInteraction state** in Drawd.jsx: `{ mode: "selected"|"draw"|"reposition"|"hotspot-drag"|"resize"|"conn-endpoint-drag", screenId, hotspotId, ... }`
 - **Connection line origins**: When a connection has a `hotspotId` and the screen has `imageHeight`, lines originate from hotspot center instead of screen right edge.
 
 ### Interactive Connection Lines
@@ -120,7 +120,7 @@ Colors and shared styles are in `src/styles/theme.js`:
 - **Double-click to edit**: Double-click a connection line to open HotspotModal for its associated hotspot.
 - **Drag endpoints to reroute**: Drag the from/to endpoint circles to reroute a connection to a different screen. Live bezier preview follows the mouse. Only updates the connection record (`fromScreenId`/`toScreenId`), not the hotspot.
 - **Delete with keyboard**: Press Delete/Backspace to remove the selected connection. Only removes the connection record; the associated hotspot remains.
-- **selectedConnection state** in FlowForge.jsx: Separate from `hotspotInteraction`. Selecting a connection clears hotspot interaction and vice versa. Clicking empty canvas clears both.
+- **selectedConnection state** in Drawd.jsx: Separate from `hotspotInteraction`. Selecting a connection clears hotspot interaction and vice versa. Clicking empty canvas clears both.
 - **Endpoint drag** uses `hotspotInteraction` mode `"conn-endpoint-drag"` to reuse the existing mouse pipeline: `{ mode, connectionId, endpoint: "from"|"to", mouseX, mouseY }`.
 - **ConnectionLines helpers**: `computePoints(conn, screens)` (exported) extracts from/to coordinates and control point; `bezierD()` builds the SVG path string.
 
@@ -130,7 +130,7 @@ Colors and shared styles are in `src/styles/theme.js`:
 - **Scenario 2 — Join existing group**: If the source screen already has a conditional group, dragging a new connection auto-joins it as `condition-N` without a prompt.
 - **Inline label editing**: After creating/joining a group, `InlineConditionLabels` renders positioned `<input>` elements at each connection's bezier midpoint. Enter advances to the next input; Enter on the last or Escape closes editing.
 - **Dismissal**: Clicking canvas while prompt is open treats as "No". Escape dismisses the prompt without creating any connection.
-- **State**: `conditionalPrompt` (prompt position + IDs) and `editingConditionGroup` (groupId) in FlowForge.jsx. Both are guarded in Delete/Undo/Redo keyboard handlers.
+- **State**: `conditionalPrompt` (prompt position + IDs) and `editingConditionGroup` (groupId) in Drawd.jsx. Both are guarded in Delete/Undo/Redo keyboard handlers.
 
 ### Undo/Redo System
 
@@ -144,7 +144,7 @@ Colors and shared styles are in `src/styles/theme.js`:
 
 ### File Persistence (Auto-Save)
 
-- **File System Access API**: Uses `showOpenFilePicker`/`showSaveFilePicker` to obtain a `FileSystemFileHandle` for silent read/write to a local `.flowforge` file. Chromium-only (Chrome/Edge); gracefully hidden in other browsers.
+- **File System Access API**: Uses `showOpenFilePicker`/`showSaveFilePicker` to obtain a `FileSystemFileHandle` for silent read/write to a local `.drawd` file. Chromium-only (Chrome/Edge); gracefully hidden in other browsers.
 - **Auto-save**: `useFilePersistence` hook watches `screens` and `connections` via `useEffect`. When a connected file handle exists, changes are debounced at 1500ms and written to disk automatically.
 - **FileHandle in useRef**: The `FileSystemFileHandle` is not serializable and must never enter the undo/redo JSON clone pipeline, so it's stored in a `useRef`.
 - **Pan/zoom in refs**: Viewport changes do NOT trigger auto-save; only screen/connection mutations do.
@@ -153,7 +153,7 @@ Colors and shared styles are in `src/styles/theme.js`:
 - **Open replaces canvas**: Opening a file always replaces current state. Import remains available for merging.
 - **Keyboard shortcuts**: `Cmd/Ctrl+S` saves immediately (or opens Save As picker if no file connected, or falls back to Export download); `Cmd/Ctrl+O` opens a file.
 - **UI**: File dropdown menu in TopBar with New, Open, Save As (Chromium only), Import, Export. Connected filename shown as a badge with a save status dot (yellow pulse = saving, green = saved, red = error).
-- **buildPayload.js**: Pure function extracted from `exportFlow.js` to construct the `.flowforge` JSON payload, reused by both export and auto-save.
+- **buildPayload.js**: Pure function extracted from `exportFlow.js` to construct the `.drawd` JSON payload, reused by both export and auto-save.
 
 ### AI Instruction Generation
 
@@ -165,7 +165,7 @@ Colors and shared styles are in `src/styles/theme.js`:
 - **ZIP download**: `buildZip()` + `downloadZip()` from `src/utils/zipBuilder.js` create and download a ZIP file containing all instruction files and images.
 - **Legacy compat**: `generateInstructions(screens, connections)` in `src/utils/generateInstructions.js` delegates to `generateInstructionFiles` and concatenates all file contents.
 - **InstructionsPanel**: Tabbed UI showing each file, with rendered markdown view (toggle to raw), per-section copy, copy-all, and download ZIP buttons.
-- **Platform selector**: Dropdown in TopBar next to the Generate button. State managed as `platformPreference` in FlowForge.jsx.
+- **Platform selector**: Dropdown in TopBar next to the Generate button. State managed as `platformPreference` in Drawd.jsx.
 - **Screen descriptions**: Editable on ALL screens (not just blank ones) via the Sidebar.
 
 ## Code Conventions
@@ -180,12 +180,12 @@ Colors and shared styles are in `src/styles/theme.js`:
 
 ## Working with This Codebase
 
-- `src/FlowForge.jsx` is the orchestrator (~780 lines). It wires hooks to components and manages all canvas interaction state.
+- `src/Drawd.jsx` is the orchestrator (~780 lines). It wires hooks to components and manages all canvas interaction state.
 - To add new canvas interactions, extend `useCanvas` hook.
 - To add new screen/connection operations, extend `useScreenManager` hook.
-- To add new UI sections, create a component in `src/components/` and compose it in `FlowForge.jsx`.
+- To add new UI sections, create a component in `src/components/` and compose it in `Drawd.jsx`.
 - When adding new shared styles, add them to `styles` in `src/styles/theme.js`.
-- `flowforge.jsx` at the root is a re-export for backwards compatibility.
+- `drawd.jsx` at the root is a re-export for backwards compatibility.
 
 ## Maintaining This Document
 

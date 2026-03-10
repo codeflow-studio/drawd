@@ -4,10 +4,10 @@ import { importFlow } from "../utils/importFlow";
 
 const isFileSystemSupported = typeof window !== "undefined" && "showOpenFilePicker" in window;
 
-const FLOWFORGE_FILE_TYPES = [
+const DRAWD_FILE_TYPES = [
   {
-    description: "FlowForge files",
-    accept: { "application/json": [".flowforge"] },
+    description: "Drawd files",
+    accept: { "application/json": [".drawd", ".flowforge"] },
   },
 ];
 
@@ -72,7 +72,7 @@ export function useFilePersistence(screens, connections, pan, zoom, documents = 
     if (!isFileSystemSupported) return null;
     try {
       const [handle] = await window.showOpenFilePicker({
-        types: FLOWFORGE_FILE_TYPES,
+        types: DRAWD_FILE_TYPES,
         multiple: false,
       });
       const file = await handle.getFile();
@@ -95,8 +95,8 @@ export function useFilePersistence(screens, connections, pan, zoom, documents = 
     if (!isFileSystemSupported) return;
     try {
       const handle = await window.showSaveFilePicker({
-        types: FLOWFORGE_FILE_TYPES,
-        suggestedName: "flow-export.flowforge",
+        types: DRAWD_FILE_TYPES,
+        suggestedName: "flow-export.drawd",
       });
 
       fileHandleRef.current = handle;
