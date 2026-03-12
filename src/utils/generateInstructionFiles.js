@@ -337,6 +337,10 @@ function generateScreenDetailMd(s, screens, images, documents = []) {
     md += `${s.description}\n\n`;
   }
 
+  if (s.codeRef) {
+    md += `**File:** \`${s.codeRef}\`\n\n`;
+  }
+
   if (s.notes) {
     md += `> **Implementation Notes:** ${s.notes}\n\n`;
   }
@@ -358,12 +362,13 @@ function generateScreenDetailMd(s, screens, images, documents = []) {
 
   if (s.hotspots.length > 0) {
     md += `#### Interactive Elements\n\n`;
-    md += `| # | Label | Type | Position | Action | Target |\n`;
-    md += `|---|-------|------|----------|--------|--------|\n`;
+    md += `| # | Label | Type | Gesture | Position | Action | Target |\n`;
+    md += `|---|-------|------|---------|----------|--------|--------|\n`;
 
     s.hotspots.forEach((h, j) => {
       const label = h.label || "Unnamed";
       const type = h.elementType || "button";
+      const gesture = h.interactionType || "tap";
       const pos = `(${h.x}%, ${h.y}%, ${h.w}%x${h.h}%)`;
       let actionStr = h.action;
       let target = "\u2014";
@@ -373,13 +378,20 @@ function generateScreenDetailMd(s, screens, images, documents = []) {
         target = targetScreen?.name || "Unknown";
       }
 
-      md += `| ${j + 1} | ${label} | ${type} | ${pos} | ${actionStr} | ${target} |\n`;
+      md += `| ${j + 1} | ${label} | ${type} | ${gesture} | ${pos} | ${actionStr} | ${target} |\n`;
     });
     md += `\n`;
 
     for (const h of s.hotspots) {
       if (h.action === "api" && (h.apiEndpoint || h.apiMethod)) {
         md += `**${h.label || "Unnamed"}** \u2014 API: \`${h.apiMethod || "GET"} ${h.apiEndpoint || "/endpoint"}\`\n\n`;
+
+        if (h.requestSchema) {
+          md += `Request:\n\`\`\`\n${h.requestSchema}\n\`\`\`\n\n`;
+        }
+        if (h.responseSchema) {
+          md += `Response:\n\`\`\`\n${h.responseSchema}\n\`\`\`\n\n`;
+        }
 
         if (h.onSuccessAction) {
           let successDetail = `On success: ${h.onSuccessAction}`;

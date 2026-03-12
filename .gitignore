@@ -2,3 +2,6 @@ node_modules
 dist
 .DS_Store
 CLAUDE.md
+
+# React Component Preview
+previewConfig.json

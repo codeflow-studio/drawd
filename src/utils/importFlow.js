@@ -36,12 +36,16 @@ export function importFlow(fileText) {
     if (screen.stateGroup === undefined) screen.stateGroup = null;
     if (screen.stateName === undefined) screen.stateName = "";
     if (screen.notes === undefined) screen.notes = "";
+    if (screen.codeRef === undefined) screen.codeRef = "";
     if (screen.status === undefined) screen.status = "new";
     if (Array.isArray(screen.hotspots)) {
       for (const hs of screen.hotspots) {
         if (!hs.elementType) hs.elementType = "button";
+        if (!hs.interactionType) hs.interactionType = "tap";
         if (!hs.apiEndpoint) hs.apiEndpoint = "";
         if (!hs.apiMethod) hs.apiMethod = "";
+        if (!hs.requestSchema) hs.requestSchema = "";
+        if (!hs.responseSchema) hs.responseSchema = "";
         if (!hs.customDescription) hs.customDescription = "";
         if (!hs.conditions) hs.conditions = [];
         if (!hs.onSuccessAction) hs.onSuccessAction = "";

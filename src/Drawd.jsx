@@ -44,7 +44,7 @@ export default function Drawd() {
     fileInputRef, addScreen, addScreenAtCenter, removeScreen, renameScreen, moveScreen,
     handleImageUpload, onFileChange, handlePaste, handleCanvasDrop,
     saveHotspot, deleteHotspot, deleteHotspots, moveHotspot, resizeHotspot, updateScreenDimensions,
-    updateScreenDescription, updateScreenNotes, assignScreenImage, quickConnectHotspot,
+    updateScreenDescription, updateScreenNotes, updateScreenCodeRef, assignScreenImage, quickConnectHotspot,
     updateConnection, deleteConnection, pasteHotspots,
     addConnection, convertToConditionalGroup, addToConditionalGroup, saveConnectionGroup, deleteConnectionGroup,
     addState, updateStateName, addDocument, updateDocument, deleteDocument,
@@ -517,6 +517,7 @@ export default function Drawd() {
             onSelectScreen={setSelectedScreen}
             onUpdateStateName={updateStateName}
             onUpdateNotes={updateScreenNotes}
+            onUpdateCodeRef={updateScreenCodeRef}
             onUpdateStatus={updateScreenStatus}
           />
         )}

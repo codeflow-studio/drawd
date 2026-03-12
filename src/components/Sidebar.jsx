@@ -9,14 +9,20 @@ const STATUS_CONFIG = {
 };
 const STATUS_CYCLE = { new: "modify", modify: "existing", existing: "new" };
 
-export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName, onUpdateNotes, onUpdateStatus }) {
+export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName, onUpdateNotes, onUpdateCodeRef, onUpdateStatus }) {
   const [draftNotes, setDraftNotes] = useState(screen.notes || "");
   const [notesScreenId, setNotesScreenId] = useState(screen.id);
+  const [draftCodeRef, setDraftCodeRef] = useState(screen.codeRef || "");
+  const [codeRefScreenId, setCodeRefScreenId] = useState(screen.id);
 
-  // Reset draft when screen changes
+  // Reset drafts when screen changes
   if (screen.id !== notesScreenId) {
     setDraftNotes(screen.notes || "");
     setNotesScreenId(screen.id);
+  }
+  if (screen.id !== codeRefScreenId) {
+    setDraftCodeRef(screen.codeRef || "");
+    setCodeRefScreenId(screen.id);
   }
 
   const incomingLinks = connections.filter((c) => c.toScreenId === screen.id);
@@ -188,6 +194,50 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
             boxSizing: "border-box",
             resize: "vertical",
             lineHeight: 1.5,
+          }}
+        />
+      </div>
+
+      {/* Code Reference */}
+      <div
+        style={{
+          padding: "10px 12px",
+          background: COLORS.bg,
+          borderRadius: 8,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{
+          fontSize: 10,
+          color: COLORS.textMuted,
+          fontFamily: FONTS.mono,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          marginBottom: 6,
+        }}>
+          Code Reference
+        </div>
+        <input
+          type="text"
+          value={draftCodeRef}
+          onChange={(e) => setDraftCodeRef(e.target.value)}
+          onBlur={() => {
+            if (draftCodeRef !== (screen.codeRef || "")) {
+              onUpdateCodeRef?.(screen.id, draftCodeRef);
+            }
+          }}
+          placeholder="e.g. src/screens/LoginScreen.tsx"
+          style={{
+            width: "100%",
+            padding: "6px 8px",
+            background: "rgba(255,255,255,0.05)",
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 6,
+            color: COLORS.text,
+            fontSize: 11,
+            fontFamily: FONTS.mono,
+            outline: "none",
+            boxSizing: "border-box",
           }}
         />
       </div>

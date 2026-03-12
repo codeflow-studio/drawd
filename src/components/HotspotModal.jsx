@@ -82,10 +82,13 @@ export function HotspotModal({ screen, hotspot, screens, documents = [], onAddDo
   const [presets, setPresets] = useState(loadPresets);
   const [label, setLabel] = useState(hotspot?.label || "");
   const [elementType, setElementType] = useState(hotspot?.elementType || "button");
+  const [interactionType, setInteractionType] = useState(hotspot?.interactionType || "tap");
   const [targetId, setTargetId] = useState(hotspot?.targetScreenId || prefilledTarget || "");
   const [action, setAction] = useState(hotspot?.action || "navigate");
   const [apiEndpoint, setApiEndpoint] = useState(hotspot?.apiEndpoint || "");
   const [apiMethod, setApiMethod] = useState(hotspot?.apiMethod || "GET");
+  const [requestSchema, setRequestSchema] = useState(hotspot?.requestSchema || "");
+  const [responseSchema, setResponseSchema] = useState(hotspot?.responseSchema || "");
   const [customDescription, setCustomDescription] = useState(hotspot?.customDescription || "");
   const [x, setX] = useState(hotspot?.x ?? prefilledRect?.x ?? 10);
   const [y, setY] = useState(hotspot?.y ?? prefilledRect?.y ?? 10);
@@ -233,10 +236,13 @@ export function HotspotModal({ screen, hotspot, screens, documents = [], onAddDo
             id: hotspot?.id || generateId(),
             label,
             elementType,
+            interactionType,
             targetScreenId: action === "conditional" ? null : (targetId || null),
             action,
             apiEndpoint,
             apiMethod,
+            requestSchema,
+            responseSchema,
             customDescription,
             documentId: documentId || null,
             onSuccessAction,
@@ -273,6 +279,21 @@ export function HotspotModal({ screen, hotspot, screens, documents = [], onAddDo
                 <option value="tab">Tab</option>
                 <option value="list-item">List Item</option>
                 <option value="other">Other</option>
+              </select>
+            </label>
+
+            <label style={styles.monoLabel}>
+              GESTURE / INTERACTION
+              <select value={interactionType} onChange={(e) => setInteractionType(e.target.value)} style={styles.select}>
+                <option value="tap">Tap</option>
+                <option value="long-press">Long Press</option>
+                <option value="swipe-left">Swipe Left</option>
+                <option value="swipe-right">Swipe Right</option>
+                <option value="swipe-up">Swipe Up</option>
+                <option value="swipe-down">Swipe Down</option>
+                <option value="pull-to-refresh">Pull to Refresh</option>
+                <option value="pinch">Pinch</option>
+                <option value="double-tap">Double Tap</option>
               </select>
             </label>
 
@@ -404,6 +425,28 @@ export function HotspotModal({ screen, hotspot, screens, documents = [], onAddDo
                     <option value="DELETE">DELETE</option>
                     <option value="PATCH">PATCH</option>
                   </select>
+                </label>
+
+                <label style={styles.monoLabel}>
+                  REQUEST BODY / PARAMS
+                  <textarea
+                    value={requestSchema}
+                    onChange={(e) => setRequestSchema(e.target.value)}
+                    placeholder={"{ userId: string, page: number }"}
+                    rows={3}
+                    style={{ ...styles.input, resize: "vertical", fontFamily: "monospace", fontSize: 11 }}
+                  />
+                </label>
+
+                <label style={styles.monoLabel}>
+                  RESPONSE SHAPE
+                  <textarea
+                    value={responseSchema}
+                    onChange={(e) => setResponseSchema(e.target.value)}
+                    placeholder={"{ data: User[], total: number }"}
+                    rows={3}
+                    style={{ ...styles.input, resize: "vertical", fontFamily: "monospace", fontSize: 11 }}
+                  />
                 </label>
 
                 <label style={styles.monoLabel}>
