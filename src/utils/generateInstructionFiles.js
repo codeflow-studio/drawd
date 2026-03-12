@@ -154,7 +154,7 @@ function generateMainMd(screens, connections, options, navAnalysis, images, docu
     ? mostCommon(deviceTypes)
     : "Unknown";
 
-  let md = `# Mobile App Flow — AI Build Instructions\n\n`;
+  let md = `# AI Build Instructions\n\n`;
   md += `| | |\n|---|---|\n`;
   md += `| **Screens** | ${screens.length} |\n`;
   md += `| **Connections** | ${connections.length} |\n`;
@@ -176,8 +176,10 @@ function generateMainMd(screens, connections, options, navAnalysis, images, docu
   md += `---\n\n`;
 
   md += `## Your Role as Orchestrator\n\n`;
-  md += `> **You are the project orchestrator.** Your responsibility is to ship a complete, working\n`;
-  md += `> app — not to implement any single screen yourself. You plan, delegate, track, and integrate.\n`;
+  md += `> **You are the project orchestrator.** Your responsibility is to ship the implemented\n`;
+  md += `> flow — whether it's a single feature, a partial user journey, or a complete app. You plan,\n`;
+  md += `> delegate, track, and integrate. Assess the scope from the Screen Roster and navigation\n`;
+  md += `> summary below: it may be a standalone product or a feature to wire into an existing codebase.\n`;
   md += `>\n`;
   md += `> **What you work from:** This file (\`main.md\`) gives you everything you need to plan and\n`;
   md += `> delegate. You do NOT need to read the detail files (\`screens.md\`, \`navigation.md\`,\n`;
@@ -185,10 +187,10 @@ function generateMainMd(screens, connections, options, navAnalysis, images, docu
   md += `> navigation summary below to form your delegation strategy.\n`;
   md += `>\n`;
   md += `> **Your core loop:**\n`;
-  md += `> 1. Study the Screen Roster and navigation pattern → form a delegation plan\n`;
+  md += `> 1. Study the Screen Roster and navigation pattern → assess scope and form a delegation plan\n`;
   md += `> 2. Spawn sub-agent teams to implement screens in parallel\n`;
   md += `> 3. Track progress; handle failures with retries\n`;
-  md += `> 4. Once all screens are done, wire shared navigation and the app entry point\n\n`;
+  md += `> 4. Once all screens are done, wire shared navigation and the entry point\n\n`;
 
   md += `## Screen Roster\n\n`;
   md += `Use this inventory to plan your delegation. Each sub-agent will implement one screen.\n\n`;
@@ -534,7 +536,7 @@ function generateBuildGuideMd(screens, connections, options) {
 
   if (platform === "auto") {
     md += `## Implementation Instructions\n\n`;
-    md += `1. Create a mobile app (React Native / Flutter / SwiftUI / Jetpack Compose — choose based on project needs)\n`;
+    md += `1. Choose the appropriate framework for the target (React Native / Flutter / SwiftUI / Jetpack Compose for mobile; React / Next.js / Vue for web — assess from the reference images and project context)\n`;
     md += `2. Implement each screen listed in screens.md as a separate component/view\n`;
     md += `3. For EACH screen, open its reference image from the \`images/\` folder and replicate the visual design exactly — colors, typography, spacing, layout, and component hierarchy\n`;
     md += `4. Wire up all navigation flows exactly as described in navigation.md\n`;
@@ -546,7 +548,7 @@ function generateBuildGuideMd(screens, connections, options) {
     md += `   - **conditional** — Branch to different screens based on a condition (see screens.md for branch definitions)\n`;
     md += `   - **custom** — Implement custom logic as described in screens.md\n`;
     md += `6. Set up proper navigation stack/router with all routes\n`;
-    md += `7. Add smooth transitions between screens matching mobile platform conventions\n`;
+    md += `7. Add smooth transitions between screens matching platform conventions\n`;
     md += `8. Ensure responsive layout that adapts to different screen sizes\n`;
     md += `\n`;
     md += `## Sub-Agent Implementation Workflow\n\n`;
