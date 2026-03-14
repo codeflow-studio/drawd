@@ -6,3 +6,6 @@ dist
 
 # React Component Preview
 previewConfig.json
+
+# Deployment config (managed via Vercel dashboard)
+vercel.json

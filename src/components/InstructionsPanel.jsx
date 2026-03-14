@@ -3,11 +3,24 @@ import { COLORS, FONTS, Z_INDEX } from "../styles/theme";
 import { buildZip, downloadZip } from "../utils/zipBuilder";
 import { COPY_FEEDBACK_MS } from "../constants";
 
-function renderMarkdown(text) {
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Only allow safe URL schemes in image src attributes
+const SAFE_SRC_RE = /^(https?:|\/|\.\/|\.\.\/)/i;
+
+export function renderMarkdown(text) {
   const lines = text.split("\n");
   let html = "";
   let inUl = false;
   let inOl = false;
+  let inCodeFence = false;
 
   const closeList = () => {
     if (inUl) { html += "</ul>"; inUl = false; }
@@ -16,36 +29,61 @@ function renderMarkdown(text) {
 
   const inlineFormat = (line) =>
     line
-      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%;border-radius:6px;margin:8px 0" />')
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+        const safeSrc = SAFE_SRC_RE.test(src) ? src : "#";
+        return `<img alt="${alt}" src="${safeSrc}" style="max-width:100%;border-radius:6px;margin:8px 0" />`;
+      })
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/`([^`]+)`/g, `<code style="background:${COLORS.accent012};padding:2px 5px;border-radius:3px;font-size:0.9em">$1</code>`);
 
   for (const raw of lines) {
     const line = raw.trimEnd();
 
-    if (line === "---" || line === "***") {
+    // Code fence state tracking — backtick is not an HTML special char so check on original
+    if (line.startsWith("```")) {
+      closeList();
+      if (!inCodeFence) {
+        inCodeFence = true;
+        html += `<pre style="background:${COLORS.bg};padding:12px;border-radius:6px;overflow:auto;margin:8px 0"><code>`;
+      } else {
+        inCodeFence = false;
+        html += "</code></pre>";
+      }
+      continue;
+    }
+
+    if (inCodeFence) {
+      // Inside a code block: escape each line directly, no inlineFormat
+      html += escapeHtml(raw) + "\n";
+      continue;
+    }
+
+    // Escape HTML entities before any pattern matching or inlineFormat calls
+    const escaped = escapeHtml(line);
+
+    if (escaped === "---" || escaped === "***") {
       closeList();
       html += "<hr/>";
       continue;
     }
 
-    if (/^\|.+\|$/.test(line)) {
+    if (/^\|.+\|$/.test(escaped)) {
       // Table rows — pass through as preformatted
       closeList();
-      html += `<div style="font-family:monospace;font-size:12px;white-space:pre">${inlineFormat(line)}</div>`;
+      html += `<div style="font-family:monospace;font-size:12px;white-space:pre">${inlineFormat(escaped)}</div>`;
       continue;
     }
 
-    const h1 = line.match(/^# (.+)/);
+    const h1 = escaped.match(/^# (.+)/);
     if (h1) { closeList(); html += `<h1 style="font-size:22px;margin:20px 0 8px;font-weight:700">${inlineFormat(h1[1])}</h1>`; continue; }
 
-    const h2 = line.match(/^## (.+)/);
+    const h2 = escaped.match(/^## (.+)/);
     if (h2) { closeList(); html += `<h2 style="font-size:17px;margin:18px 0 6px;font-weight:600">${inlineFormat(h2[1])}</h2>`; continue; }
 
-    const h3 = line.match(/^### (.+)/);
+    const h3 = escaped.match(/^### (.+)/);
     if (h3) { closeList(); html += `<h3 style="font-size:14px;margin:14px 0 4px;font-weight:600">${inlineFormat(h3[1])}</h3>`; continue; }
 
-    const ul = line.match(/^[-*] (.+)/);
+    const ul = escaped.match(/^[-*] (.+)/);
     if (ul) {
       if (inOl) { html += "</ol>"; inOl = false; }
       if (!inUl) { html += "<ul>"; inUl = true; }
@@ -53,13 +91,13 @@ function renderMarkdown(text) {
       continue;
     }
 
-    const olIndented = line.match(/^ {2,}[-*] (.+)/);
+    const olIndented = escaped.match(/^ {2,}[-*] (.+)/);
     if (olIndented) {
       html += `<li style="margin-left:16px">${inlineFormat(olIndented[1])}</li>`;
       continue;
     }
 
-    const ol = line.match(/^\d+\. (.+)/);
+    const ol = escaped.match(/^\d+\. (.+)/);
     if (ol) {
       if (inUl) { html += "</ul>"; inUl = false; }
       if (!inOl) { html += "<ol>"; inOl = true; }
@@ -72,7 +110,7 @@ function renderMarkdown(text) {
     if (line.trim() === "") {
       html += "<br/>";
     } else {
-      html += `<p style="margin:4px 0">${inlineFormat(line)}</p>`;
+      html += `<p style="margin:4px 0">${inlineFormat(escaped)}</p>`;
     }
   }
 
