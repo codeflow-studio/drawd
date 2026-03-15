@@ -35,7 +35,6 @@ export function useCanvasMouseHandlers({
   spaceHeld,
   isPanning,
   dragging,
-  multiDragging,
   // screen management
   setSelectedScreen,
   moveScreen,
@@ -43,7 +42,6 @@ export function useCanvasMouseHandlers({
   updateStickyNote,
   stickyNotes,
   // canvas selection
-  canvasSelection,
   clearSelection,
   startRubberBand,
   updateRubberBand,
