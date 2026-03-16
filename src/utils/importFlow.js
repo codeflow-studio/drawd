@@ -110,5 +110,18 @@ export function importFlow(fileText) {
   if (!Array.isArray(data.stickyNotes)) data.stickyNotes = [];
   if (!Array.isArray(data.screenGroups)) data.screenGroups = [];
 
+  // Backward compat: new screenGroup fields (v11)
+  for (const group of data.screenGroups) {
+    if (group.type === undefined) group.type = "feature-area";
+    if (group.tabIndex === undefined) group.tabIndex = null;
+    if (group.tabIcon === undefined) group.tabIcon = "";
+    if (group.stackEntryScreenId === undefined) group.stackEntryScreenId = null;
+  }
+
+  // Backward compat: navigationStructure (v11)
+  if (!data.navigationStructure) {
+    data.navigationStructure = { type: null, stackGroupIds: [] };
+  }
+
   return data;
 }

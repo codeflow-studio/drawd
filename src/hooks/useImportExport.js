@@ -10,6 +10,7 @@ export function useImportExport({
   dataModels,
   stickyNotes,
   screenGroups,
+  navigationStructure,
   pan,
   zoom,
   featureBrief,
@@ -26,8 +27,8 @@ export function useImportExport({
   const importFileRef = useRef(null);
 
   const onExport = useCallback(() => {
-    exportFlow(screens, connections, pan, zoom, documents, featureBrief, taskLink, techStack, dataModels, stickyNotes || [], screenGroups || []);
-  }, [screens, connections, documents, dataModels, stickyNotes, screenGroups, pan, zoom, featureBrief, taskLink, techStack]);
+    exportFlow(screens, connections, pan, zoom, documents, featureBrief, taskLink, techStack, dataModels, stickyNotes || [], screenGroups || [], navigationStructure);
+  }, [screens, connections, documents, dataModels, stickyNotes, screenGroups, navigationStructure, pan, zoom, featureBrief, taskLink, techStack]);
 
   const onImport = useCallback(() => {
     importFileRef.current?.click();

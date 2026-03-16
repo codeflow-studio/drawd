@@ -10,7 +10,7 @@ const barBtn = {
   fontFamily: FONTS.mono,
 };
 
-export function BatchSelectionBar({ count, onDelete, onGroup, onCancel }) {
+export function BatchSelectionBar({ count, onDelete, onGroup, onStack, onCancel }) {
   return (
     <div
       style={{
@@ -45,6 +45,13 @@ export function BatchSelectionBar({ count, onDelete, onGroup, onCancel }) {
         style={{ ...barBtn, background: COLORS.accent015, color: COLORS.accentLight }}
       >
         Group
+      </button>
+
+      <button
+        onClick={onStack}
+        style={{ ...barBtn, background: "rgba(86,182,194,0.12)", color: "#56b6c2" }}
+      >
+        Stack
       </button>
 
       <button

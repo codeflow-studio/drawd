@@ -1,6 +1,6 @@
 import { FILE_VERSION, DEFAULT_FLOW_NAME } from "../constants";
 
-export function buildPayload(screens, connections, pan, zoom, documents = [], featureBrief = "", taskLink = "", techStack = {}, dataModels = [], stickyNotes = [], screenGroups = []) {
+export function buildPayload(screens, connections, pan, zoom, documents = [], featureBrief = "", taskLink = "", techStack = {}, dataModels = [], stickyNotes = [], screenGroups = [], navigationStructure = null) {
   return {
     version: FILE_VERSION,
     metadata: {
@@ -20,5 +20,6 @@ export function buildPayload(screens, connections, pan, zoom, documents = [], fe
     dataModels,
     stickyNotes,
     screenGroups,
+    navigationStructure: navigationStructure || { type: null, stackGroupIds: [] },
   };
 }

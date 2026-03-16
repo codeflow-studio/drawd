@@ -2,7 +2,7 @@ import { COLORS, FONTS, STATUS_CONFIG, STATUS_CYCLE } from "../styles/theme";
 import { useState } from "react";
 import { SIDEBAR_WIDTH } from "../constants";
 
-export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName, onUpdateNotes, onUpdateCodeRef, onUpdateCriteria, onUpdateStatus, onUpdateTbd, onUpdateRoles }) {
+export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName, onUpdateNotes, onUpdateCodeRef, onUpdateCriteria, onUpdateStatus, onUpdateTbd, onUpdateRoles, navigationStructure, screenGroups }) {
   const [draftNotes, setDraftNotes] = useState(screen.notes || "");
   const [notesScreenId, setNotesScreenId] = useState(screen.id);
   const [draftCodeRef, setDraftCodeRef] = useState(screen.codeRef || "");
@@ -624,6 +624,56 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
       >
         + Add Tap Area
       </button>
+
+      {/* Navigation info */}
+      {(() => {
+        const navType = navigationStructure?.type ?? null;
+        if (!navType) return null;
+        const stackGroupIds = navigationStructure?.stackGroupIds || [];
+        const navStackGroups = (screenGroups || []).filter(g => g.type === "nav-stack");
+        const screenStack = navStackGroups.find(g => g.screenIds.includes(screen.id));
+        if (!screenStack) return null;
+
+        const tabIndex = stackGroupIds.indexOf(screenStack.id);
+        const isEntry = screenStack.stackEntryScreenId === screen.id;
+
+        return (
+          <>
+            <h5
+              style={{
+                margin: "20px 0 8px",
+                color: COLORS.textMuted,
+                fontFamily: FONTS.mono,
+                fontSize: 10,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              Navigation
+            </h5>
+            <div
+              style={{
+                padding: "8px 12px",
+                background: "rgba(86,182,194,0.06)",
+                border: "1px solid rgba(86,182,194,0.25)",
+                borderRadius: 8,
+                marginBottom: 4,
+                fontSize: 11,
+                fontFamily: FONTS.mono,
+                lineHeight: 1.6,
+              }}
+            >
+              <div style={{ color: "#56b6c2", fontWeight: 600 }}>{screenStack.name}</div>
+              {navType === "tab-bar" && tabIndex >= 0 && (
+                <div style={{ color: COLORS.textMuted }}>Tab {tabIndex + 1}</div>
+              )}
+              <div style={{ color: COLORS.textDim }}>
+                {isEntry ? "Entry screen" : "Pushed screen"}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Incoming connections */}
       {incomingLinks.length > 0 && (

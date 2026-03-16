@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { COLORS, FONTS, FONT_LINK, Z_INDEX } from "./styles/theme";
 import { HEADER_HEIGHT, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, FILE_EXTENSION, LEGACY_FILE_EXTENSION } from "./constants";
 import { generateInstructionFiles } from "./utils/generateInstructionFiles";
@@ -87,9 +87,17 @@ export default function Drawd() {
   const [screenGroups, setScreenGroups] = useState([]);
   const [selectedScreenGroup, setSelectedScreenGroup] = useState(null);
 
+  // ── Navigation structure (derived from screenGroups) ─────────────────────
+  const navigationStructure = useMemo(() => {
+    const navStacks = screenGroups.filter((g) => g.type === "nav-stack");
+    if (navStacks.length === 0) return { type: null, stackGroupIds: [] };
+    if (navStacks.length === 1) return { type: "single-stack", stackGroupIds: [navStacks[0].id] };
+    return { type: "tab-bar", stackGroupIds: navStacks.map((g) => g.id) };
+  }, [screenGroups]);
+
   // ── Screen group callbacks ────────────────────────────────────────────────
-  const addScreenGroup = useCallback((name, screenIds = [], color = COLORS.accent008) => {
-    const group = { id: generateId(), name, screenIds, color, folderHint: "" };
+  const addScreenGroup = useCallback((name, screenIds = [], color = COLORS.accent008, type = "feature-area") => {
+    const group = { id: generateId(), name, screenIds, color, folderHint: "", type, tabIndex: null, tabIcon: "", stackEntryScreenId: null };
     setScreenGroups((prev) => [...prev, group]);
     return group.id;
   }, []);
@@ -161,7 +169,7 @@ export default function Drawd() {
   const {
     connectedFileName, saveStatus, isFileSystemSupported,
     openFile, saveAs, saveNow, disconnect,
-  } = useFilePersistence(screens, connections, pan, zoom, documents, featureBrief, taskLink, techStack, dataModels, stickyNotes, screenGroups);
+  } = useFilePersistence(screens, connections, pan, zoom, documents, featureBrief, taskLink, techStack, dataModels, stickyNotes, screenGroups, navigationStructure);
 
   // ── File actions ───────────────────────────────────────────────────
   const onOpen = useCallback(async () => {
@@ -346,7 +354,7 @@ export default function Drawd() {
 
   // ── Import / export ────────────────────────────────────────────────────────────────
   const { importConfirm, setImportConfirm, importFileRef, onExport, onImport, onImportFileChange, onImportReplace, onImportMerge } =
-    useImportExport({ screens, connections, documents, dataModels, stickyNotes, screenGroups, pan, zoom, featureBrief, taskLink, techStack, replaceAll, mergeAll, setPan, setZoom, setStickyNotes, setScreenGroups });
+    useImportExport({ screens, connections, documents, dataModels, stickyNotes, screenGroups, navigationStructure, pan, zoom, featureBrief, taskLink, techStack, replaceAll, mergeAll, setPan, setZoom, setStickyNotes, setScreenGroups });
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────────────
   useKeyboardShortcuts({
@@ -397,6 +405,14 @@ export default function Drawd() {
     clearSelection();
   }, [canvasSelection, addScreenGroup, clearSelection]);
 
+  const handleStackSelection = useCallback(() => {
+    const selectedScreenIds = canvasSelection.filter((i) => i.type === "screen").map((i) => i.id);
+    if (selectedScreenIds.length === 0) return;
+    const gid = addScreenGroup("Nav Stack", selectedScreenIds, COLORS.accent008, "nav-stack");
+    updateScreenGroup(gid, { stackEntryScreenId: selectedScreenIds[0] });
+    clearSelection();
+  }, [canvasSelection, addScreenGroup, updateScreenGroup, clearSelection]);
+
   const onDeleteSelection = useCallback(() => {
     const screenIds = canvasSelection.filter((i) => i.type === "screen").map((i) => i.id);
     const stickyIds = canvasSelection.filter((i) => i.type === "sticky").map((i) => i.id);
@@ -426,18 +442,19 @@ export default function Drawd() {
       techStack,
       dataModels,
       screenGroups,
+      navigationStructure,
       scopeScreenIds,
       allScreens: screens,
       warnings,
     });
-  }, [screens, connections, documents, featureBrief, scopeScreenIds, taskLink, techStack, dataModels, screenGroups]);
+  }, [screens, connections, documents, featureBrief, scopeScreenIds, taskLink, techStack, dataModels, screenGroups, navigationStructure]);
 
   const onGenerate = useCallback(() => {
     if (screens.length === 0) return;
     const scopedScreens = scopeScreenIds
       ? screens.filter((s) => scopeScreenIds.has(s.id))
       : screens;
-    const warnings = validateInstructions(scopedScreens, connections, { documents });
+    const warnings = validateInstructions(scopedScreens, connections, { documents, screenGroups, navigationStructure });
     const errors = warnings.filter((w) => w.level === "error");
     if (
       errors.length > 0 &&
@@ -791,6 +808,28 @@ export default function Drawd() {
               </button>
               <button
                 onClick={() => {
+                  const gid = addScreenGroup("Nav Stack", [groupContextMenu.screenId], COLORS.accent008, "nav-stack");
+                  updateScreenGroup(gid, { stackEntryScreenId: groupContextMenu.screenId });
+                  setSelectedScreenGroup(gid);
+                  setGroupContextMenu(null);
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "6px 14px",
+                  background: "none",
+                  border: "none",
+                  color: "#56b6c2",
+                  fontFamily: FONTS.mono,
+                  fontSize: 12,
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                + Create new nav stack…
+              </button>
+              <button
+                onClick={() => {
                   removeScreenFromGroup(groupContextMenu.screenId);
                   setGroupContextMenu(null);
                 }}
@@ -846,6 +885,8 @@ export default function Drawd() {
             onUpdateCodeRef={updateScreenCodeRef}
             onUpdateCriteria={updateScreenCriteria}
             onUpdateStatus={updateScreenStatus}
+            navigationStructure={navigationStructure}
+            screenGroups={screenGroups}
           />
         )}
       </div>
@@ -955,6 +996,7 @@ export default function Drawd() {
           count={canvasSelection.length}
           onDelete={onDeleteSelection}
           onGroup={onGroupSelection}
+          onStack={handleStackSelection}
           onCancel={clearSelection}
         />
       )}

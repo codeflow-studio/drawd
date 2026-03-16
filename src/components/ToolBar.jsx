@@ -42,6 +42,7 @@ const StickyNoteIcon = () => (
   </svg>
 );
 
+
 const TOOLS = [
   { id: "select", label: "Select", icon: SelectIcon, key: "V" },
   { id: "pan", label: "Pan", icon: PanIcon, key: "H" },

@@ -234,9 +234,26 @@ function generateMainMd(screens, connections, options, navAnalysis, images, docu
   }
   const hasGroups = screenGroups.length > 0;
 
-  if (hasGroups) {
+  // Build screenId → nav stack lookup (user-defined)
+  const screenStackMap = {};
+  if (navAnalysis.userDefined && navAnalysis.stacks) {
+    for (const stack of navAnalysis.stacks) {
+      for (const s of stack.screens) {
+        screenStackMap[s.id] = { stackName: stack.name, tabIndex: stack.tabIndex, entryScreenId: stack.entryScreenId };
+      }
+    }
+  }
+  const hasNavDefined = navAnalysis.userDefined && navAnalysis.stacks?.length > 0;
+
+  if (hasGroups && hasNavDefined) {
+    md += `| # | ID | Screen | Image | Spec | Group | Nav | Status | TBD | Access | Role |\n`;
+    md += `|---|-------|--------|-------|------|-------|-----|--------|-----|--------|------|\n`;
+  } else if (hasGroups) {
     md += `| # | ID | Screen | Image | Spec | Group | Status | TBD | Access | Role |\n`;
     md += `|---|-------|--------|-------|------|-------|--------|-----|--------|------|\n`;
+  } else if (hasNavDefined) {
+    md += `| # | ID | Screen | Image | Spec | Nav | Status | TBD | Access | Role |\n`;
+    md += `|---|-------|--------|-------|------|-----|--------|-----|--------|------|\n`;
   } else {
     md += `| # | ID | Screen | Image | Spec | Status | TBD | Access | Role |\n`;
     md += `|---|-------|--------|-------|------|--------|-----|--------|------|\n`;
@@ -260,25 +277,54 @@ function generateMainMd(screens, connections, options, navAnalysis, images, docu
     const accessLabel = (s.roles && s.roles.length > 0) ? s.roles.join(", ") : "—";
     const groupLabel = screenGroupMap[s.id] ? screenGroupMap[s.id].name : "—";
     const specRef = `\`screens.md\` > \`${reqId}\``;
-    if (hasGroups) {
-      md += `| ${i + 1} | \`${reqId}\` | ${s.name}${stateLabel} | \`${imgRef}\` | ${specRef} | ${groupLabel} | ${statusLabel} | ${tbdLabel} | ${accessLabel} | ${navRoles.length > 0 ? navRoles.join(", ") : "screen"} |\n`;
+    const navStackInfo = screenStackMap[s.id];
+    const navLabel = navStackInfo
+      ? (navStackInfo.entryScreenId === s.id
+          ? `${navStackInfo.stackName} (entry)`
+          : navStackInfo.stackName)
+      : "—";
+    const roleLabel = navRoles.length > 0 ? navRoles.join(", ") : "screen";
+
+    if (hasGroups && hasNavDefined) {
+      md += `| ${i + 1} | \`${reqId}\` | ${s.name}${stateLabel} | \`${imgRef}\` | ${specRef} | ${groupLabel} | ${navLabel} | ${statusLabel} | ${tbdLabel} | ${accessLabel} | ${roleLabel} |\n`;
+    } else if (hasGroups) {
+      md += `| ${i + 1} | \`${reqId}\` | ${s.name}${stateLabel} | \`${imgRef}\` | ${specRef} | ${groupLabel} | ${statusLabel} | ${tbdLabel} | ${accessLabel} | ${roleLabel} |\n`;
+    } else if (hasNavDefined) {
+      md += `| ${i + 1} | \`${reqId}\` | ${s.name}${stateLabel} | \`${imgRef}\` | ${specRef} | ${navLabel} | ${statusLabel} | ${tbdLabel} | ${accessLabel} | ${roleLabel} |\n`;
     } else {
-      md += `| ${i + 1} | \`${reqId}\` | ${s.name}${stateLabel} | \`${imgRef}\` | ${specRef} | ${statusLabel} | ${tbdLabel} | ${accessLabel} | ${navRoles.length > 0 ? navRoles.join(", ") : "screen"} |\n`;
+      md += `| ${i + 1} | \`${reqId}\` | ${s.name}${stateLabel} | \`${imgRef}\` | ${specRef} | ${statusLabel} | ${tbdLabel} | ${accessLabel} | ${roleLabel} |\n`;
     }
   });
   md += `\n`;
 
   // Feature Areas summary (if groups exist)
   if (hasGroups) {
-    md += `### Feature Areas\n\n`;
-    for (const g of screenGroups) {
-      const memberNames = g.screenIds
-        .map(id => screens.find(s => s.id === id)?.name)
-        .filter(Boolean)
-        .join(", ");
-      md += `- **${g.name}**${g.folderHint ? ` (\`${g.folderHint}\`)` : ""}: ${memberNames || "no screens"}\n`;
+    const featureAreaGroups = screenGroups.filter(g => !g.type || g.type === "feature-area");
+    const navStackGroups = screenGroups.filter(g => g.type === "nav-stack");
+
+    if (navStackGroups.length > 0) {
+      md += `### Navigation Stacks\n\n`;
+      for (const g of navStackGroups) {
+        const memberNames = g.screenIds
+          .map(id => screens.find(s => s.id === id)?.name)
+          .filter(Boolean)
+          .join(", ");
+        md += `- **${g.name}** (stack): ${memberNames || "no screens"}\n`;
+      }
+      md += `\n`;
     }
-    md += `\n`;
+
+    if (featureAreaGroups.length > 0) {
+      md += `### Feature Areas\n\n`;
+      for (const g of featureAreaGroups) {
+        const memberNames = g.screenIds
+          .map(id => screens.find(s => s.id === id)?.name)
+          .filter(Boolean)
+          .join(", ");
+        md += `- **${g.name}**${g.folderHint ? ` (\`${g.folderHint}\`)` : ""}: ${memberNames || "no screens"}\n`;
+      }
+      md += `\n`;
+    }
   }
 
   // Context-only screens (existing)
@@ -580,6 +626,31 @@ function generateNavigationMd(screens, connections, navAnalysis) {
     md += `${navAnalysis.navigationSummary}\n\n`;
   }
 
+  // User-defined navigation structure
+  if (navAnalysis.userDefined && navAnalysis.stacks) {
+    const isTabBar = navAnalysis.tabBar !== null;
+    md += `## Navigation Structure\n\n`;
+    md += `> **This navigation structure was explicitly defined by the designer.**\n\n`;
+
+    if (isTabBar) {
+      md += `**Type:** Tab Bar + Stacks\n\n`;
+      md += `| Tab # | Tab Name | Entry Screen | Screens in Stack |\n`;
+      md += `|-------|----------|--------------|------------------|\n`;
+      for (const stack of navAnalysis.stacks) {
+        const screenNames = stack.screens.map(s => s.name).join(", ");
+        const entryName = stack.screens.find(s => s.id === stack.entryScreenId)?.name ?? "—";
+        md += `| ${stack.tabIndex + 1} | ${stack.name} | ${entryName} | ${screenNames} |\n`;
+      }
+      md += `\n`;
+    } else {
+      md += `**Type:** Single Root Stack\n\n`;
+      if (navAnalysis.stacks.length > 0) {
+        const stack = navAnalysis.stacks[0];
+        md += `**Stack:** ${stack.screens.map(s => s.name).join(" → ")}\n\n`;
+      }
+    }
+  }
+
   // Entry screens
   if (navAnalysis.entryScreens.length > 0) {
     md += `## Entry Screens\n\n`;
@@ -589,8 +660,8 @@ function generateNavigationMd(screens, connections, navAnalysis) {
     md += `\n`;
   }
 
-  // Tab bar patterns
-  if (navAnalysis.tabBarPatterns.length > 0) {
+  // Tab bar patterns (heuristic only)
+  if (!navAnalysis.userDefined && navAnalysis.tabBarPatterns.length > 0) {
     md += `## Tab Bar Patterns\n\n`;
     for (const pattern of navAnalysis.tabBarPatterns) {
       md += `**${pattern.hubScreenName}** hub with ${pattern.tabs.length} tabs:\n`;
@@ -647,11 +718,43 @@ function generateNavigationMd(screens, connections, navAnalysis) {
   return md;
 }
 
-function generateBuildGuideMd(screens, connections, options, screenGroups = []) {
+function generateBuildGuideMd(screens, connections, options, screenGroups = [], navAnalysis = null) {
   const platform = options.platform || "auto";
   const techStack = options.techStack || {};
   const hasTechStack = Object.values(techStack).some(Boolean);
   let md = `# Build Guide\n\n`;
+
+  // User-defined navigation setup
+  if (navAnalysis?.userDefined && navAnalysis.stacks) {
+    const isTabBar = navAnalysis.tabBar !== null;
+    md += `## Navigation Setup\n\n`;
+    md += `> **Set up this navigation structure before implementing individual screens.**\n\n`;
+
+    if (isTabBar) {
+      md += `**Pattern:** Tab Bar with ${navAnalysis.stacks.length} tabs, each backed by a navigation stack.\n\n`;
+      md += `### Tab Configuration\n\n`;
+      md += `| Tab | Entry Screen | Stack Depth |\n`;
+      md += `|-----|--------------|-------------|\n`;
+      for (const stack of navAnalysis.stacks) {
+        const entryName = stack.screens.find(s => s.id === stack.entryScreenId)?.name ?? "—";
+        md += `| ${stack.name}${stack.tabIcon ? ` (${stack.tabIcon})` : ""} | ${entryName} | ${stack.screens.length} screen${stack.screens.length !== 1 ? "s" : ""} |\n`;
+      }
+      md += `\n`;
+      md += `### Router Pseudocode\n\n`;
+      md += `\`\`\`\nTabBar:\n`;
+      for (const stack of navAnalysis.stacks) {
+        const screenNames = stack.screens.map(s => s.name);
+        md += `  Tab "${stack.name}" → Stack(${screenNames.join(", ")})\n`;
+      }
+      md += `\`\`\`\n\n`;
+    } else {
+      const stack = navAnalysis.stacks[0];
+      if (stack) {
+        md += `**Pattern:** Single root navigation stack.\n\n`;
+        md += `\`\`\`\nStack: ${stack.screens.map(s => s.name).join(" → ")}\n\`\`\`\n\n`;
+      }
+    }
+  }
 
   // Folder structure hints from screen groups
   const groupsWithHints = screenGroups.filter(g => g.folderHint);
@@ -861,7 +964,8 @@ export function generateInstructionFiles(screens, connections, options = {}) {
   const documents = options.documents || [];
   const dataModels = options.dataModels || [];
   const screenGroups = options.screenGroups || [];
-  const navAnalysis = analyzeNavGraph(screens, connections);
+  const navigationStructure = options.navigationStructure || null;
+  const navAnalysis = analyzeNavGraph(screens, connections, navigationStructure, screenGroups);
   const images = extractImages(screens);
   const generatedAt = new Date().toISOString();
   const schemaHeader = `<!-- drawd-schema: ${INSTRUCTION_SCHEMA_VERSION} | generated: ${generatedAt} -->\n\n`;
@@ -870,7 +974,7 @@ export function generateInstructionFiles(screens, connections, options = {}) {
     { name: "main.md", content: generateMainMd(screens, connections, options, navAnalysis, images, documents, screenGroups) },
     { name: "screens.md", content: generateScreensMd(screens, connections, images, documents) },
     { name: "navigation.md", content: generateNavigationMd(screens, connections, navAnalysis) },
-    { name: "build-guide.md", content: generateBuildGuideMd(screens, connections, options, screenGroups) },
+    { name: "build-guide.md", content: generateBuildGuideMd(screens, connections, options, screenGroups, navAnalysis) },
   ];
 
   const documentsMd = generateDocumentsMd(documents);
