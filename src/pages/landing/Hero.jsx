@@ -266,6 +266,25 @@ export default function Hero() {
               See How It Works
             </button>
           </div>
+
+          <a
+            href="https://www.producthunt.com/products/drawd?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-drawd"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              marginTop: 24,
+              animation: "fadeInUp 0.5s ease both",
+              animationDelay: "320ms",
+              display: "inline-block",
+            }}
+          >
+            <img
+              alt="Drawd - Design app flows visually. Generate AI build instructions. | Product Hunt"
+              width="250"
+              height="54"
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1098709&theme=dark&t=1773694751467"
+            />
+          </a>
         </div>
 
         {/* Right column — decorative illustration */}
