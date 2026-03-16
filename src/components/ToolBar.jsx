@@ -89,8 +89,7 @@ function ActionButton({ icon: Icon, label, shortcutKey, onClick }) {
   );
 }
 
-export function ToolBar({ activeTool, onToolChange, onUpload, onAddBlank, onAddStickyNote, hidden }) {
-  if (hidden) return null;
+export function ToolBar({ activeTool, onToolChange, onUpload, onAddBlank, onAddStickyNote }) {
   return (
     <div
       style={{
