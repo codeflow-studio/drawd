@@ -16,8 +16,8 @@ const DOCS_CSS = `
     text-decoration: none;
     padding: 6px 12px;
     border-radius: 6px;
-    border-left: 2px solid transparent;
-    transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    border-left: none;
+    transition: color 0.16s ease, background 0.16s ease;
     cursor: pointer;
     background: none;
     border-top: none;
@@ -34,7 +34,6 @@ const DOCS_CSS = `
   .docs-toc-link.active {
     color: ${L_COLORS.accentLight};
     background: rgba(97,175,239,0.1);
-    border-left-color: ${L_COLORS.accent};
   }
 
   /* ── Docs section heading ───────────────────── */
