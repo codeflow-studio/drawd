@@ -30,6 +30,15 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useEffect(() => {
+    const titles = {
+      landing: "Drawd — Visual App Flow Designer",
+      editor: "Editor — Drawd",
+      docs: "User Guide — Drawd",
+    };
+    document.title = titles[route] || titles.landing;
+  }, [route]);
+
   let page;
   if (route === "editor") {
     page = (
