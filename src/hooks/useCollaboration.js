@@ -43,6 +43,7 @@ export function useCollaboration({
   const buildCollabPayloadRef = useRef(null);
   const applyRemoteStateRef = useRef(null);
   const applyRemoteImageRef = useRef(null);
+  const initializedPeersRef = useRef(new Set());
 
   // Keep refs in sync
   useEffect(() => { screensRef.current = screens; }, [screens]);
@@ -136,11 +137,17 @@ export function useCollaboration({
       }
     });
 
-    // When a new peer joins, host sends current state then images one-by-one
-    channel.on("presence", { event: "join" }, () => {
-      if (roleRef.current === "host") {
+    // When a genuinely new peer joins, host sends current state then images one-by-one.
+    // Supabase Presence fires leave+join on every track() call (e.g. cursor updates),
+    // so we deduplicate by tracking which peerIds we've already initialized.
+    channel.on("presence", { event: "join" }, ({ newPresences }) => {
+      if (roleRef.current !== "host") return;
+      for (const p of newPresences) {
+        if (!p.peerId || initializedPeersRef.current.has(p.peerId)) continue;
+        initializedPeersRef.current.add(p.peerId);
         // Small delay to let the joiner's subscription settle
         setTimeout(() => {
+          if (channelRef.current !== channel) return;
           channel.send({
             type: "broadcast",
             event: "state-update",
@@ -161,6 +168,7 @@ export function useCollaboration({
             }, (i + 1) * 100);
           });
         }, 300);
+        break; // one send per new peer is enough
       }
     });
   }, []);
@@ -232,6 +240,7 @@ export function useCollaboration({
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
+    initializedPeersRef.current.clear();
     setIsConnected(false);
     setRoomCode(null);
     setRole(null);

@@ -153,11 +153,28 @@ export default function Drawd({ initialRoomCode }) {
   const [showShareModal, setShowShareModal] = useState(!!initialRoomCode);
   const pendingRemoteStateRef = useRef(null);
 
+  const screensRef = useRef(screens);
+  useEffect(() => { screensRef.current = screens; }, [screens]);
+
   const applyRemotePayload = useCallback((payload) => {
+    const incomingScreens = payload.screens || [];
+    // Preserve existing imageData for screens that arrive without it.
+    // buildCollabPayload strips imageData to stay under Supabase's size limit,
+    // so we merge with the guest's current images to avoid flicker.
+    const currentScreens = screensRef.current;
+    const merged = incomingScreens.map((s) => {
+      if (!s.imageData) {
+        const existing = currentScreens.find((e) => e.id === s.id);
+        if (existing?.imageData) {
+          return { ...s, imageData: existing.imageData };
+        }
+      }
+      return s;
+    });
     replaceAll(
-      payload.screens || [],
+      merged,
       payload.connections || [],
-      (payload.screens || []).length + 1,
+      merged.length + 1,
       payload.documents || [],
     );
     if (payload.featureBrief !== undefined) setFeatureBrief(payload.featureBrief);
