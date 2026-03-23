@@ -1,5 +1,4 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { Analytics } from "@vercel/analytics/react";
 import LandingPage from "./pages/LandingPage";
 import DocsPage from "./pages/DocsPage";
 import { COLORS } from "./styles/theme";
@@ -69,10 +68,5 @@ export default function App() {
     page = <LandingPage />;
   }
 
-  return (
-    <>
-      {page}
-      <Analytics />
-    </>
-  );
+  return page;
 }
