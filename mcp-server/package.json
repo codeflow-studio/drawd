@@ -1,6 +1,6 @@
 {
   "name": "drawd-mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for Drawd — AI agent flow builder. Create app flow designs programmatically with AI agents.",
   "type": "module",
   "bin": {
@@ -26,7 +26,14 @@
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["mcp", "drawd", "flow-designer", "ai-agent", "app-design", "mobile-flow"],
+  "keywords": [
+    "mcp",
+    "drawd",
+    "flow-designer",
+    "ai-agent",
+    "app-design",
+    "mobile-flow"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
