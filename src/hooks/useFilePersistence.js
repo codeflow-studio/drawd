@@ -186,6 +186,15 @@ export function useFilePersistence(screens, connections, pan, zoom, documents = 
     if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
   }, []);
 
+  const connectHandle = useCallback(async (handle) => {
+    const file = await handle.getFile();
+    fileHandleRef.current = handle;
+    lastKnownModifiedRef.current = file.lastModified;
+    setConnectedFileName(file.name);
+    setSaveStatus("idle");
+    skipNextSaveRef.current = true;
+  }, []);
+
   const saveNow = useCallback(async () => {
     if (!fileHandleRef.current) return false;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -208,6 +217,7 @@ export function useFilePersistence(screens, connections, pan, zoom, documents = 
     openFile,
     saveAs,
     saveNow,
+    connectHandle,
     disconnect,
   };
 }

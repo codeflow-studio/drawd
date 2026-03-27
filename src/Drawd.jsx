@@ -28,7 +28,7 @@ import { ModalsLayer } from "./components/ModalsLayer";
 import { CollabPresence } from "./components/CollabPresence";
 import { CollabBadge } from "./components/CollabBadge";
 import { importFlow } from "./utils/importFlow";
-import { detectDrawdFile } from "./utils/detectDrawdFile";
+import { detectDrawdFile, findDrawdItem } from "./utils/detectDrawdFile";
 
 
 export default function Drawd({ initialRoomCode }) {
@@ -137,7 +137,7 @@ export default function Drawd({ initialRoomCode }) {
 
   const {
     connectedFileName, saveStatus, isFileSystemSupported,
-    openFile, saveAs, saveNow, disconnect,
+    openFile, saveAs, saveNow, connectHandle, disconnect,
   } = useFilePersistence(screens, connections, pan, zoom, documents, featureBrief, taskLink, techStack, dataModels, stickyNotes, screenGroups, onExternalChange);
 
   // ── File actions ───────────────────────────────────────────────────
@@ -258,28 +258,40 @@ export default function Drawd({ initialRoomCode }) {
     useImportExport({ screens, connections, documents, dataModels, stickyNotes, screenGroups, pan, zoom, featureBrief, taskLink, techStack, replaceAll, mergeAll, setPan, setZoom, setStickyNotes, setScreenGroups });
 
   // ── Canvas drop (intercepts .drawd files, delegates images) ────────────────────────
-  const onCanvasDrop = useCallback((e) => {
+  const onCanvasDrop = useCallback(async (e) => {
     e.preventDefault();
     const drawdFile = detectDrawdFile(e.dataTransfer.files);
     if (!drawdFile) {
       handleCanvasDrop(e);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const payload = importFlow(ev.target.result);
-        if (screens.length === 0) {
-          applyPayload(payload);
-        } else {
-          setImportConfirm(payload);
-        }
-      } catch (err) {
-        alert(err.message);
+
+    // Capture both promises synchronously before any await — the DataTransferItemList
+    // is cleared by the browser as soon as the event handler yields.
+    const textPromise = drawdFile.text();
+    let handlePromise = null;
+    if (isFileSystemSupported && e.dataTransfer.items) {
+      const drawdItem = findDrawdItem(e.dataTransfer.items);
+      if (drawdItem) handlePromise = drawdItem.getAsFileSystemHandle();
+    }
+
+    try {
+      const [text, handle] = await Promise.all([textPromise, handlePromise]);
+      const payload = importFlow(text);
+
+      if (handle && handle.kind === "file") {
+        await connectHandle(handle);
       }
-    };
-    reader.readAsText(drawdFile);
-  }, [screens.length, handleCanvasDrop, applyPayload, setImportConfirm]);
+
+      if (screens.length === 0) {
+        applyPayload(payload);
+      } else {
+        setImportConfirm(payload);
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  }, [screens.length, handleCanvasDrop, applyPayload, setImportConfirm, connectHandle, isFileSystemSupported]);
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────────────
   useKeyboardShortcuts({
