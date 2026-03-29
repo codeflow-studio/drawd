@@ -3,6 +3,7 @@ import { DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT } from "../constants";
 import { ScreenNode } from "./ScreenNode";
 import { ConnectionLines } from "./ConnectionLines";
 import { ConditionalPrompt } from "./ConditionalPrompt";
+import { ConnectionTypePrompt } from "./ConnectionTypePrompt";
 import { InlineConditionLabels } from "./InlineConditionLabels";
 import { SelectionOverlay } from "./SelectionOverlay";
 import { EmptyState } from "./EmptyState";
@@ -41,6 +42,8 @@ export function CanvasArea({
   repositionGhost,
   // Conditional prompt
   conditionalPrompt, onConditionalPromptConfirm, onConditionalPromptCancel,
+  // Connection type prompt
+  connectionTypePrompt, onConnectionTypeNavigate, onConnectionTypeStateVariant,
   // Collaboration
   collab,
   // Inline condition labels
@@ -53,13 +56,18 @@ export function CanvasArea({
   return (
     <div
       ref={canvasRef}
-      onMouseDown={onCanvasMouseDown}
+      onMouseDown={(e) => {
+        if (connectionTypePrompt) { onConnectionTypeNavigate(); return; }
+        onCanvasMouseDown(e);
+      }}
       onMouseMove={onCanvasMouseMove}
       onMouseUp={onCanvasMouseUp}
       onMouseLeave={onCanvasMouseLeave}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onCanvasDrop}
-      onClick={() => { if (groupContextMenu) setGroupContextMenu(null); }}
+      onClick={() => {
+        if (groupContextMenu) setGroupContextMenu(null);
+      }}
       onDoubleClick={(e) => {
         if (e.target !== canvasRef.current) return;
         const rect = canvasRef.current.getBoundingClientRect();
@@ -222,6 +230,14 @@ export function CanvasArea({
             y={conditionalPrompt.y}
             onConfirm={onConditionalPromptConfirm}
             onCancel={onConditionalPromptCancel}
+          />
+        )}
+        {connectionTypePrompt && (
+          <ConnectionTypePrompt
+            x={connectionTypePrompt.x}
+            y={connectionTypePrompt.y}
+            onNavigate={onConnectionTypeNavigate}
+            onStateVariant={onConnectionTypeStateVariant}
           />
         )}
         {collab.isConnected && <RemoteCursors cursors={collab.remoteCursors} />}

@@ -780,6 +780,31 @@ export function useScreenManager(pan, zoom, canvasRef) {
     setSelectedScreen(newScreen.id);
   }, [screens, connections, documents, pushHistory]);
 
+  const linkAsState = useCallback((screenId, parentScreenId) => {
+    pushHistory(screens, connections, documents);
+    const parent = screens.find((s) => s.id === parentScreenId);
+    const target = screens.find((s) => s.id === screenId);
+    if (!parent || !target) return;
+    if (screenId === parentScreenId) return;
+    if (parent.stateGroup && parent.stateGroup === target.stateGroup) return;
+
+    const groupId = parent.stateGroup || generateId();
+    const siblings = screens.filter((s) => s.stateGroup === groupId);
+    const stateNumber = siblings.length + (parent.stateGroup ? 1 : 2);
+
+    setScreens((prev) =>
+      prev.map((s) => {
+        if (s.id === parentScreenId && !s.stateGroup) {
+          return { ...s, stateGroup: groupId, stateName: DEFAULT_STATE_NAME };
+        }
+        if (s.id === screenId) {
+          return { ...s, stateGroup: groupId, stateName: s.stateName || `State ${stateNumber - 1}` };
+        }
+        return s;
+      })
+    );
+  }, [screens, connections, documents, pushHistory]);
+
   const updateStateName = useCallback((screenId, stateName) => {
     pushHistory(screens, connections, documents);
     setScreens((prev) => prev.map((s) => (s.id === screenId ? { ...s, stateName } : s)));
@@ -873,6 +898,7 @@ export function useScreenManager(pan, zoom, canvasRef) {
     saveConnectionGroup,
     deleteConnectionGroup,
     addState,
+    linkAsState,
     updateStateName,
     addDocument,
     updateDocument,

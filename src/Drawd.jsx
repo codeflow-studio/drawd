@@ -49,7 +49,7 @@ export default function Drawd({ initialRoomCode }) {
     updateScreenDescription, updateScreenNotes, updateScreenTbd, updateScreenRoles, updateScreenCodeRef, updateScreenCriteria, assignScreenImage, patchScreenImage, quickConnectHotspot,
     updateConnection, deleteConnection,
     addConnection, convertToConditionalGroup, addToConditionalGroup, saveConnectionGroup, deleteConnectionGroup,
-    addState, updateStateName, addDocument, updateDocument, deleteDocument,
+    addState, linkAsState, updateStateName, addDocument, updateDocument, deleteDocument,
     replaceAll, mergeAll,
     canUndo, canRedo, undo, redo, captureDragSnapshot, commitDragSnapshot,
     updateScreenStatus, markAllExisting,
@@ -174,6 +174,7 @@ export default function Drawd({ initialRoomCode }) {
   const connInteraction = useConnectionInteraction({
     screens, connections, canvasRef, pan, zoom,
     addConnection, addToConditionalGroup, convertToConditionalGroup,
+    linkAsState,
   });
 
   const {
@@ -181,9 +182,11 @@ export default function Drawd({ initialRoomCode }) {
     hoverTarget, setHoverTarget,
     selectedConnection, setSelectedConnection,
     conditionalPrompt, setConditionalPrompt,
+    connectionTypePrompt, setConnectionTypePrompt,
     editingConditionGroup, setEditingConditionGroup,
     onDotDragStart, onStartConnect,
     onConditionalPromptConfirm, onConditionalPromptCancel,
+    onConnectionTypeNavigate, onConnectionTypeStateVariant,
   } = connInteraction;
 
   const hsInteraction = useHotspotInteraction({
@@ -218,6 +221,7 @@ export default function Drawd({ initialRoomCode }) {
     hotspotInteraction, setHotspotInteraction,
     setSelectedConnection, setHoverTarget,
     setConditionalPrompt, setEditingConditionGroup,
+    setConnectionTypePrompt,
     setHotspotModal, setConnectionEditModal,
     quickConnectHotspot, addConnection, addToConditionalGroup,
     onStartConnect,
@@ -468,6 +472,9 @@ export default function Drawd({ initialRoomCode }) {
           conditionalPrompt={conditionalPrompt}
           onConditionalPromptConfirm={onConditionalPromptConfirm}
           onConditionalPromptCancel={onConditionalPromptCancel}
+          connectionTypePrompt={connectionTypePrompt}
+          onConnectionTypeNavigate={onConnectionTypeNavigate}
+          onConnectionTypeStateVariant={onConnectionTypeStateVariant}
           collab={collab}
           editingConditionGroup={editingConditionGroup}
           updateConnection={updateConnection}

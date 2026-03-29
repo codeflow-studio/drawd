@@ -510,6 +510,102 @@ describe("addState", () => {
   });
 });
 
+describe("linkAsState", () => {
+  it("links two screens into the same stateGroup", () => {
+    const { result } = setup();
+    act(() => result.current.addScreen(null, "A"));
+    act(() => result.current.addScreen(null, "B"));
+    const idA = result.current.screens[0].id;
+    const idB = result.current.screens[1].id;
+
+    act(() => result.current.linkAsState(idB, idA));
+    expect(result.current.screens[0].stateGroup).toBeTruthy();
+    expect(result.current.screens[1].stateGroup).toBe(result.current.screens[0].stateGroup);
+  });
+
+  it("parent gets stateName='Default', target gets 'State 1'", () => {
+    const { result } = setup();
+    act(() => result.current.addScreen(null, "A"));
+    act(() => result.current.addScreen(null, "B"));
+    const idA = result.current.screens[0].id;
+    const idB = result.current.screens[1].id;
+
+    act(() => result.current.linkAsState(idB, idA));
+    expect(result.current.screens[0].stateName).toBe("Default");
+    expect(result.current.screens[1].stateName).toBe("State 1");
+  });
+
+  it("does nothing when linking a screen to itself", () => {
+    const { result } = setup();
+    act(() => result.current.addScreen(null, "A"));
+    const idA = result.current.screens[0].id;
+
+    act(() => result.current.linkAsState(idA, idA));
+    expect(result.current.screens[0].stateGroup).toBeNull();
+  });
+
+  it("does nothing when both screens are already in the same group", () => {
+    const { result } = setup();
+    act(() => result.current.addScreen(null, "A"));
+    act(() => result.current.addScreen(null, "B"));
+    const idA = result.current.screens[0].id;
+    const idB = result.current.screens[1].id;
+
+    act(() => result.current.linkAsState(idB, idA));
+    const groupId = result.current.screens[0].stateGroup;
+
+    act(() => result.current.linkAsState(idB, idA));
+    expect(result.current.screens[0].stateGroup).toBe(groupId);
+    expect(result.current.screens[1].stateGroup).toBe(groupId);
+  });
+
+  it("reuses existing stateGroup when parent already has one", () => {
+    const { result } = setup();
+    act(() => result.current.addScreen(null, "A"));
+    act(() => result.current.addScreen(null, "B"));
+    act(() => result.current.addScreen(null, "C"));
+    const idA = result.current.screens[0].id;
+    const idB = result.current.screens[1].id;
+    const idC = result.current.screens[2].id;
+
+    act(() => result.current.addState(idA));
+    const groupId = result.current.screens[0].stateGroup;
+
+    act(() => result.current.linkAsState(idB, idA));
+    expect(result.current.screens[1].stateGroup).toBe(groupId);
+
+    act(() => result.current.linkAsState(idC, idA));
+    expect(result.current.screens[2].stateGroup).toBe(groupId);
+  });
+
+  it("is undoable", () => {
+    const { result } = setup();
+    act(() => result.current.addScreen(null, "A"));
+    act(() => result.current.addScreen(null, "B"));
+    const idA = result.current.screens[0].id;
+    const idB = result.current.screens[1].id;
+
+    act(() => result.current.linkAsState(idB, idA));
+    expect(result.current.screens[0].stateGroup).toBeTruthy();
+
+    act(() => result.current.undo());
+    expect(result.current.screens[0].stateGroup).toBeNull();
+    expect(result.current.screens[1].stateGroup).toBeNull();
+  });
+
+  it("preserves existing stateName on target screen", () => {
+    const { result } = setup();
+    act(() => result.current.addScreen(null, "A"));
+    act(() => result.current.addScreen(null, "B"));
+    const idA = result.current.screens[0].id;
+    const idB = result.current.screens[1].id;
+
+    act(() => result.current.updateStateName(idB, "Loading"));
+    act(() => result.current.linkAsState(idB, idA));
+    expect(result.current.screens[1].stateName).toBe("Loading");
+  });
+});
+
 describe("saveConnectionGroup", () => {
   it("navigate mode saves connection with fromScreenId, toScreenId, label", () => {
     const { result } = setup();

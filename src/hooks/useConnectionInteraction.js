@@ -10,11 +10,13 @@ export function useConnectionInteraction({
   addConnection,
   addToConditionalGroup: _addToConditionalGroup,
   convertToConditionalGroup,
+  linkAsState,
 }) {
   const [connecting, setConnecting] = useState(null);
   const [hoverTarget, setHoverTarget] = useState(null);
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [conditionalPrompt, setConditionalPrompt] = useState(null);
+  const [connectionTypePrompt, setConnectionTypePrompt] = useState(null);
   const [editingConditionGroup, setEditingConditionGroup] = useState(null);
 
   const cancelConnecting = useCallback(() => {
@@ -55,16 +57,31 @@ export function useConnectionInteraction({
     setConditionalPrompt(null);
   }, [conditionalPrompt, addConnection]);
 
+  const onConnectionTypeNavigate = useCallback(() => {
+    if (!connectionTypePrompt) return;
+    addConnection(connectionTypePrompt.fromId, connectionTypePrompt.targetScreenId);
+    setConnectionTypePrompt(null);
+  }, [connectionTypePrompt, addConnection]);
+
+  const onConnectionTypeStateVariant = useCallback(() => {
+    if (!connectionTypePrompt) return;
+    linkAsState(connectionTypePrompt.targetScreenId, connectionTypePrompt.fromId);
+    setConnectionTypePrompt(null);
+  }, [connectionTypePrompt, linkAsState]);
+
   return {
     connecting, setConnecting,
     hoverTarget, setHoverTarget,
     selectedConnection, setSelectedConnection,
     conditionalPrompt, setConditionalPrompt,
+    connectionTypePrompt, setConnectionTypePrompt,
     editingConditionGroup, setEditingConditionGroup,
     cancelConnecting,
     onDotDragStart,
     onStartConnect,
     onConditionalPromptConfirm,
     onConditionalPromptCancel,
+    onConnectionTypeNavigate,
+    onConnectionTypeStateVariant,
   };
 }

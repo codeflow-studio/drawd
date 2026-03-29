@@ -7,8 +7,9 @@ export function useInteractionCallbacks({
   hotspotInteraction, setHotspotInteraction,
   setSelectedConnection, setHoverTarget,
   setConditionalPrompt, setEditingConditionGroup,
+  setConnectionTypePrompt,
   setHotspotModal, setConnectionEditModal,
-  quickConnectHotspot, addConnection, addToConditionalGroup,
+  quickConnectHotspot, addConnection: _addConnection, addToConditionalGroup,
   onStartConnect,
   activeTool, captureDragSnapshot,
   handleDragStart, handleMultiDragStart,
@@ -71,9 +72,12 @@ export function useInteractionCallbacks({
       return;
     }
 
-    addConnection(fromId, targetScreenId);
+    const fromScreen = screens.find((s) => s.id === fromId);
+    const promptX = fromScreen ? fromScreen.x + (fromScreen.width || DEFAULT_SCREEN_WIDTH) + 20 : 0;
+    const promptY = fromScreen ? fromScreen.y : 0;
+    setConnectionTypePrompt({ fromId, targetScreenId, x: promptX, y: promptY });
     cancelConnecting();
-  }, [connecting, cancelConnecting, hotspotInteraction, setHotspotInteraction, quickConnectHotspot, addConnection, connections, screens, addToConditionalGroup, setEditingConditionGroup, setHoverTarget, setConditionalPrompt]);
+  }, [connecting, cancelConnecting, hotspotInteraction, setHotspotInteraction, quickConnectHotspot, connections, screens, addToConditionalGroup, setEditingConditionGroup, setHoverTarget, setConditionalPrompt, setConnectionTypePrompt]);
 
   // Open hotspot modal when a draw gesture completes
   useEffect(() => {

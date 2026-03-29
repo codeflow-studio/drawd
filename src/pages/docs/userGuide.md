@@ -184,9 +184,13 @@ After creating a conditional group, inline label inputs appear along each connec
 
 Screen states let you model different visual variants of the same logical screen — for example, a loading state, an error state, or a logged-in vs. logged-out view.
 
-### Adding a state
+### Adding a new state screen
 
 Select a screen, then click "Add State" in the right sidebar. A new variant screen is created 250px to the right of the original, sharing a state group with it. The original screen is automatically labeled "Default".
+
+### Linking an existing screen as a state variant
+
+Drag a connection from one screen to another. A popup appears asking you to choose between **Navigate** (creates a normal navigation link) and **State Variant** (links the target screen into the source screen's state group). Choosing "State Variant" groups both screens together — a dashed connector line appears between them, and they are treated as a single logical screen in the generated instructions.
 
 ### Naming states
 
