@@ -1,7 +1,7 @@
 // ── App Identity ─────────────────────────────
 export const APP_NAME = "Drawd";
 export const ICON_PATH = "/icon.svg";
-export const GITHUB_URL = "https://github.com/trmquang93/drawd";
+export const GITHUB_URL = "https://github.com/codeflow-studio/drawd";
 export const DOMAIN = "drawd.app";
 
 // ── File Format ──────────────────────────────
