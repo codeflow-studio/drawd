@@ -28,6 +28,7 @@ const browserGlobals = {
   crypto: "readonly",
   KeyboardEvent: "readonly",
   MouseEvent: "readonly",
+  CustomEvent: "readonly",
 };
 
 export default [

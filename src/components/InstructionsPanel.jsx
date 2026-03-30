@@ -148,7 +148,15 @@ export function InstructionsPanel({ instructions, onClose }) {
     ];
     const blob = buildZip(zipFiles);
     downloadZip(blob, "drawd-instructions.zip");
+    window.dispatchEvent(new CustomEvent("drawd:zip_exported"));
   }, [files, images]);
+
+  const onShareX = useCallback(() => {
+    const text = encodeURIComponent(
+      "Just generated AI build instructions for my app using @drawd_app — visual flow designer that exports specs for your LLM. drawd.app #vibecoding"
+    );
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener,noreferrer");
+  }, []);
 
   return (
     <div
@@ -217,6 +225,24 @@ export function InstructionsPanel({ instructions, onClose }) {
                 }}
               >
                 Download ZIP
+              </button>
+              <button
+                onClick={onShareX}
+                title="Share on X"
+                style={{
+                  padding: "7px 12px",
+                  background: "rgba(255,255,255,0.06)",
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 8,
+                  color: COLORS.textMuted,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: FONTS.mono,
+                  transition: "all 0.2s",
+                }}
+              >
+                Share
               </button>
               <button
                 onClick={copyAll}

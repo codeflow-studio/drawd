@@ -59,6 +59,7 @@ export function useFilePersistence(screens, connections, pan, zoom, documents = 
       setSaveStatus("saved");
       if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
       statusTimeoutRef.current = setTimeout(() => setSaveStatus("idle"), SAVE_STATUS_RESET_MS);
+      window.dispatchEvent(new CustomEvent("drawd:file_saved"));
     } catch (err) {
       if (err.name === "AbortError") return;
       console.error("Auto-save failed:", err);
@@ -133,6 +134,7 @@ export function useFilePersistence(screens, connections, pan, zoom, documents = 
       setConnectedFileName(file.name);
       setSaveStatus("idle");
       skipNextSaveRef.current = true;
+      window.dispatchEvent(new CustomEvent("drawd:file_opened"));
 
       return payload;
     } catch (err) {
