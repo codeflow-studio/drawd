@@ -1,6 +1,6 @@
 import { COLORS, FONTS, Z_INDEX } from "../styles/theme";
 import { DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT } from "../constants";
-import { copyScreenForFigma, downloadScreenSvg } from "../utils/copyToFigma";
+import { copyScreenForFigma, copyScreensForFigma, downloadScreenSvg } from "../utils/copyToFigma";
 import { ScreenNode } from "./ScreenNode";
 import { ConnectionLines } from "./ConnectionLines";
 import { ConditionalPrompt } from "./ConditionalPrompt";
@@ -312,7 +312,14 @@ export function CanvasArea({
       {/* Screen group context menu */}
       {groupContextMenu && (() => {
         const ctxScreen = screens.find((s) => s.id === groupContextMenu.screenId);
-        const hasFigmaExport = ctxScreen && (ctxScreen.svgContent || ctxScreen.wireframe);
+        const selectedScreenIds = canvasSelection.filter((i) => i.type === "screen").map((i) => i.id);
+        const isInSelection = selectedScreenIds.includes(groupContextMenu.screenId);
+        const copyTargetIds = isInSelection && selectedScreenIds.length > 1
+          ? selectedScreenIds
+          : [groupContextMenu.screenId];
+        const copyTargetScreens = copyTargetIds.map((id) => screens.find((s) => s.id === id)).filter(Boolean);
+        const figmaExportCount = copyTargetScreens.filter((s) => s.svgContent || s.wireframe).length;
+        const hasFigmaExport = figmaExportCount > 0;
         return (
         <div
           style={{
@@ -385,9 +392,13 @@ export function CanvasArea({
             <>
               <button
                 onClick={async () => {
-                  const ok = await copyScreenForFigma(ctxScreen);
+                  const count = await copyScreensForFigma(copyTargetScreens);
                   setGroupContextMenu(null);
-                  if (ok && showToast) showToast("SVG copied — paste in Figma");
+                  if (count && showToast) {
+                    showToast(count > 1
+                      ? `${count} screens copied — paste in Figma`
+                      : "SVG copied — paste in Figma");
+                  }
                 }}
                 style={{
                   display: "block",
@@ -402,7 +413,9 @@ export function CanvasArea({
                   cursor: "pointer",
                 }}
               >
-                Copy for Figma
+                {copyTargetIds.length > 1
+                  ? `Copy ${figmaExportCount} Screen${figmaExportCount > 1 ? "s" : ""} for Figma`
+                  : "Copy for Figma"}
               </button>
               <button
                 onClick={() => {
