@@ -300,6 +300,62 @@ function hasAutoLayout(node) {
   return mode === "HORIZONTAL" || mode === "VERTICAL";
 }
 
+// ─── Vector network → SVG path ──────────────────────────────────────────────
+
+/**
+ * Convert a Figma vectorNetwork (vertices + segments) to an SVG path `d` string.
+ * Mirrors the logic of @grida/refig's vn.toSVGPathData but without importing
+ * the private module-scoped variable.
+ */
+function vectorNetworkToSvgPath(network) {
+  const { vertices, segments } = network;
+  if (!segments?.length || !vertices?.length) return "";
+
+  const parts = [];
+  let currentStart = null;
+  let previousEnd = null;
+
+  for (const seg of segments) {
+    const { a, b, ta, tb } = seg;
+    const start = vertices[a];
+    const end = vertices[b];
+    if (!start || !end) continue;
+
+    if (previousEnd !== a) {
+      parts.push(`M${fmt(start[0])} ${fmt(start[1])}`);
+      currentStart = a;
+    }
+
+    const noTangents =
+      (ta[0] === 0 && ta[1] === 0 && tb[0] === 0 && tb[1] === 0);
+
+    if (noTangents) {
+      parts.push(`L${fmt(end[0])} ${fmt(end[1])}`);
+    } else {
+      const c1x = start[0] + ta[0];
+      const c1y = start[1] + ta[1];
+      const c2x = end[0] + tb[0];
+      const c2y = end[1] + tb[1];
+      parts.push(
+        `C${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(end[0])} ${fmt(end[1])}`
+      );
+    }
+
+    previousEnd = b;
+    if (currentStart !== null && b === currentStart) {
+      parts.push("Z");
+      previousEnd = null;
+      currentStart = null;
+    }
+  }
+
+  return parts.join("");
+}
+
+function fmt(n) {
+  return Math.round(n * 100) / 100;
+}
+
 // ─── Main converter ─────────────────────────────────────────────────────────
 
 function convertNode(node, isRoot) {
@@ -494,11 +550,11 @@ function convertFrameNode(node, isRoot) {
 
   // Render children
   const childrenHtml = (node.children || [])
-    .map((child) => {
+    .map((child, i) => {
       if (!autoLayout) {
         // Absolute positioning for non-auto-layout children
         const childPos = getNodePosition(child);
-        const wrapStyle = `position: absolute; left: ${childPos.x}px; top: ${childPos.y}px`;
+        const wrapStyle = `position: absolute; left: ${childPos.x}px; top: ${childPos.y}px; z-index: ${i}`;
         const childHtml = convertNode(child, false);
         if (!childHtml) return "";
         return `<div style="${wrapStyle}">${childHtml}</div>`;
@@ -514,10 +570,56 @@ function convertFrameNode(node, isRoot) {
 
 function convertShapeNode(node) {
   const { width, height } = getNodeSize(node);
-  const styles = {};
+  const w = Math.ceil(width);
+  const h = Math.ceil(height);
 
-  styles.width = `${Math.ceil(width)}px`;
-  styles.height = `${Math.ceil(height)}px`;
+  // Try to render as inline SVG from vectorNetwork path data
+  const svgPath = node.vectorNetwork
+    ? vectorNetworkToSvgPath(node.vectorNetwork)
+    : "";
+
+  if (svgPath) {
+    const styles = {};
+    styles.width = `${w}px`;
+    styles.height = `${h}px`;
+    styles.flexShrink = "0";
+
+    // Opacity
+    const opacity = node.opacity;
+    if (opacity != null && opacity < 1) {
+      styles.opacity = opacity.toFixed(3);
+    }
+
+    // Fill color
+    const fills = node.fillPaints ?? node.fills;
+    let fillColor = "currentColor";
+    if (fills?.length) {
+      const solidFill = fills.find((f) => f.type === "SOLID" && f.visible !== false);
+      if (solidFill) {
+        fillColor = figmaColorToCss(solidFill.color, solidFill.opacity);
+      }
+    }
+
+    // Stroke color
+    const strokes = node.strokePaints ?? node.strokes;
+    const strokeWeight = node.strokeWeight ?? 0;
+    let strokeAttr = "";
+    if (strokes?.length && strokeWeight > 0) {
+      const solidStroke = strokes.find((s) => s.type === "SOLID" && s.visible !== false);
+      if (solidStroke) {
+        const strokeColor = figmaColorToCss(solidStroke.color, solidStroke.opacity);
+        strokeAttr = ` stroke="${strokeColor}" stroke-width="${strokeWeight}"`;
+      }
+    }
+
+    const wrapStyle = stylesToString(styles);
+    return `<div style="${wrapStyle}"><svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="${svgPath}" fill="${fillColor}"${strokeAttr}/></svg></div>`;
+  }
+
+  // Fallback: render as a colored div (no vector path data available)
+  const styles = {};
+  styles.width = `${w}px`;
+  styles.height = `${h}px`;
   styles.boxSizing = "border-box";
 
   // Background fills
@@ -540,8 +642,8 @@ function convertShapeNode(node) {
 
   // LINE → thin horizontal/vertical element
   if (node.type === "LINE") {
-    if (height <= 1) styles.height = "1px";
-    if (width <= 1) styles.width = "1px";
+    if (h <= 1) styles.height = "1px";
+    if (w <= 1) styles.width = "1px";
   }
 
   // Opacity

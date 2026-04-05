@@ -240,3 +240,132 @@ describe("figmaNodeToHtml — fills and corners", () => {
     expect(html).toContain("border-radius: 12px 12px 0px 0px");
   });
 });
+
+// ─── Vector / shape SVG rendering ────────────────────────────────────────────
+
+/** Build a minimal VECTOR node with optional vectorNetwork. */
+function makeVector(overrides = {}) {
+  return {
+    type: "VECTOR",
+    name: "Vector",
+    id: "1:50",
+    visible: true,
+    opacity: 1,
+    size: { x: 24, y: 24 },
+    relativeTransform: [[1, 0, 0], [0, 1, 0]],
+    fills: [{ type: "SOLID", visible: true, opacity: 1, color: { r: 0, g: 0, b: 0, a: 1 } }],
+    strokes: [],
+    strokeWeight: 0,
+    strokeAlign: "INSIDE",
+    cornerRadius: 0,
+    effects: [],
+    ...overrides,
+  };
+}
+
+describe("figmaNodeToHtml — vector SVG rendering", () => {
+  it("renders a vector node with vectorNetwork as inline SVG", () => {
+    const node = makeFrame({
+      children: [
+        makeVector({
+          vectorNetwork: {
+            vertices: [[0, 12], [12, 0], [24, 12], [12, 24]],
+            segments: [
+              { a: 0, b: 1, ta: [0, 0], tb: [0, 0] },
+              { a: 1, b: 2, ta: [0, 0], tb: [0, 0] },
+              { a: 2, b: 3, ta: [0, 0], tb: [0, 0] },
+              { a: 3, b: 0, ta: [0, 0], tb: [0, 0] },
+            ],
+          },
+        }),
+      ],
+    });
+    const html = figmaNodeToHtml(node);
+    expect(html).toContain("<svg");
+    expect(html).toContain("<path");
+    expect(html).toContain('viewBox="0 0 24 24"');
+    expect(html).toContain("M0 12");
+    expect(html).toContain("L12 0");
+    expect(html).toContain("Z");
+    expect(html).toContain('fill="rgb(0, 0, 0)"');
+  });
+
+  it("renders a vector with curved segments (cubic bezier)", () => {
+    const node = makeFrame({
+      children: [
+        makeVector({
+          vectorNetwork: {
+            vertices: [[0, 12], [24, 12]],
+            segments: [
+              { a: 0, b: 1, ta: [6, -8], tb: [-6, -8] },
+            ],
+          },
+        }),
+      ],
+    });
+    const html = figmaNodeToHtml(node);
+    expect(html).toContain("<svg");
+    expect(html).toContain("C"); // cubic bezier command
+  });
+
+  it("falls back to colored div when no vectorNetwork", () => {
+    const node = makeFrame({
+      children: [
+        makeVector({
+          fills: [{ type: "SOLID", visible: true, opacity: 1, color: { r: 1, g: 0, b: 0, a: 1 } }],
+        }),
+      ],
+    });
+    const html = figmaNodeToHtml(node);
+    expect(html).not.toContain("<svg");
+    expect(html).toContain("background-color: rgb(255, 0, 0)");
+    expect(html).toContain("width: 24px");
+  });
+
+  it("applies stroke attributes when strokes are present", () => {
+    const node = makeFrame({
+      children: [
+        makeVector({
+          vectorNetwork: {
+            vertices: [[0, 0], [24, 24]],
+            segments: [{ a: 0, b: 1, ta: [0, 0], tb: [0, 0] }],
+          },
+          fills: [],
+          strokes: [{ type: "SOLID", visible: true, opacity: 1, color: { r: 0, g: 0, b: 1, a: 1 } }],
+          strokeWeight: 2,
+        }),
+      ],
+    });
+    const html = figmaNodeToHtml(node);
+    expect(html).toContain('stroke="rgb(0, 0, 255)"');
+    expect(html).toContain('stroke-width="2"');
+  });
+});
+
+// ─── Z-index for absolute-positioned children ────────────────────────────────
+
+describe("figmaNodeToHtml — z-index stacking", () => {
+  it("assigns incremental z-index to non-auto-layout children", () => {
+    const node = makeFrame({
+      children: [
+        makeText("Behind", { relativeTransform: [[1, 0, 0], [0, 1, 0]] }),
+        makeText("In front", { relativeTransform: [[1, 0, 0], [0, 1, 50]] }),
+      ],
+    });
+    const html = figmaNodeToHtml(node);
+    expect(html).toContain("z-index: 0");
+    expect(html).toContain("z-index: 1");
+  });
+
+  it("does NOT add z-index to auto-layout children", () => {
+    const node = makeFrame({
+      stackMode: "VERTICAL",
+      children: [
+        makeText("A"),
+        makeText("B"),
+      ],
+    });
+    const html = figmaNodeToHtml(node);
+    expect(html).not.toContain("z-index");
+  });
+});
