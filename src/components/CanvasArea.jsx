@@ -64,6 +64,7 @@ export function CanvasArea({
   mcpFlashIds,
   // Comments
   comments, canComment, onCommentImageClick, onCommentConnectionClick,
+  selectedCommentId, onCommentPinClick, onDeselectComment,
 }) {
   return (
     <>
@@ -207,8 +208,9 @@ export function CanvasArea({
               (c) => c.screenId === screen.id && c.targetType === "screen" && !c.resolved
             )}
             onCommentImageClick={onCommentImageClick}
-            selectedCommentId={null}
-            onCommentPinClick={null}
+            selectedCommentId={selectedCommentId}
+            onCommentPinClick={onCommentPinClick}
+            onDeselectComment={onDeselectComment}
           />
         ))}
         {stickyNotes.map((note) => (
