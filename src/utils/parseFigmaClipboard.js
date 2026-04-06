@@ -3,6 +3,7 @@ import { FigmaDocument, FigmaRenderer } from "@grida/refig/browser";
 // iofigma is exported from the chunk but not re-exported from @grida/refig/browser.
 // Pin the dependency version to keep this import stable.
 import { iofigma } from "@grida/refig/dist/chunk-INJ5F2RK.mjs";
+import { figmaNodeToHtml, renderHtmlToImage } from "./figmaToHtml";
 
 // ---------------------------------------------------------------------------
 // Shared-component capture: monkey-patch factory.node to intercept
@@ -12,6 +13,25 @@ import { iofigma } from "@grida/refig/dist/chunk-INJ5F2RK.mjs";
 const origFactoryNode = iofigma.kiwi.factory.node;
 let captureState = null;
 
+// Auto-layout property names that exist on raw kiwi nodeChanges but are
+// dropped by the factory's REST-API conversion. We copy them onto the
+// factory output so figmaToHtml.js can read them directly.
+const KIWI_LAYOUT_PROPS = [
+  "stackMode",
+  "stackSpacing",
+  "stackHorizontalPadding",
+  "stackVerticalPadding",
+  "stackPaddingRight",
+  "stackPaddingBottom",
+  "stackPrimaryAlignItems",
+  "stackCounterAlignItems",
+  "stackChildAlignSelf",
+  "stackChildPrimaryGrow",
+  "stackPositioning",
+  "stackCounterSizing",
+  "stackPrimarySizing",
+];
+
 iofigma.kiwi.factory.node = function (nc, message) {
   if (captureState) {
     captureState.message = message;
@@ -19,7 +39,19 @@ iofigma.kiwi.factory.node = function (nc, message) {
       captureState.derived.set(iofigma.kiwi.guid(nc.guid), nc);
     }
   }
-  return origFactoryNode.call(this, nc, message);
+  const node = origFactoryNode.call(this, nc, message);
+
+  // Augment with auto-layout properties from the raw kiwi nodeChange.
+  // The factory converts to REST API format but drops all layout props.
+  if (node) {
+    for (const prop of KIWI_LAYOUT_PROPS) {
+      if (nc[prop] != null) {
+        node[prop] = nc[prop];
+      }
+    }
+  }
+
+  return node;
 };
 
 function beginCapture() {
@@ -56,6 +88,121 @@ function findNodeInFigFile(figFile, nodeId) {
   return null;
 }
 
+/**
+ * Build a REST-like node tree from an array of raw kiwi nodeChanges.
+ * Uses the monkey-patched factory so auto-layout / vector props are preserved.
+ *
+ * @param {Array} derivedNCs  - raw kiwi nodeChanges (e.g. from derivedSymbolData)
+ * @param {object} message    - the kiwi message object (needed for blob decoding)
+ * @param {string} parentGuid - guid of the logical parent (for root-child detection)
+ * @returns {{ rootChildren: Array, guidToNode: Map, guidToKiwi: Map }}
+ */
+function buildDerivedTree(derivedNCs, message, parentGuid) {
+  // Use the patched factory (preserves auto-layout props + vector data)
+  const nodes = derivedNCs
+    .map((nc) => iofigma.kiwi.factory.node(nc, message))
+    .filter(Boolean);
+
+  const guidToNode = new Map();
+  nodes.forEach((n) => guidToNode.set(n.id, n));
+
+  const guidToKiwi = new Map();
+  derivedNCs.forEach((nc) => {
+    if (nc.guid) guidToKiwi.set(iofigma.kiwi.guid(nc.guid), nc);
+  });
+
+  // Build parent-child relationships (mirrors buildChildrenRelationsInPlace)
+  nodes.forEach((node) => {
+    const kiwi = guidToKiwi.get(node.id);
+    if (!kiwi?.parentIndex?.guid) return;
+    const pGuid = iofigma.kiwi.guid(kiwi.parentIndex.guid);
+    const parent = guidToNode.get(pGuid);
+    if (parent && "children" in parent) {
+      if (!parent.children) parent.children = [];
+      parent.children.push(node);
+    }
+  });
+
+  // Sort children by fractional position index
+  guidToNode.forEach((parent) => {
+    if (!parent.children?.length) return;
+    parent.children.sort((a, b) => {
+      const aPos = guidToKiwi.get(a.id)?.parentIndex?.position ?? "";
+      const bPos = guidToKiwi.get(b.id)?.parentIndex?.position ?? "";
+      return aPos.localeCompare(bPos);
+    });
+  });
+
+  // Root children: nodes whose kiwi parent is the specified parentGuid
+  const rootChildren = nodes.filter((node) => {
+    const kiwi = guidToKiwi.get(node.id);
+    if (!kiwi?.parentIndex?.guid) return false;
+    return iofigma.kiwi.guid(kiwi.parentIndex.guid) === parentGuid;
+  });
+
+  return { rootChildren, guidToNode, guidToKiwi };
+}
+
+/**
+ * Apply symbol overrides (text content, visibility, opacity) from an
+ * INSTANCE's symbolData onto the resolved derived tree.
+ */
+function applySymbolOverrides(rootChildren, kiwiInstance) {
+  const overrides = kiwiInstance.symbolData?.symbolOverrides;
+  if (!Array.isArray(overrides) || overrides.length === 0) return;
+
+  // Build a flat map of all nodes in the tree for quick lookup
+  const flatMap = new Map();
+  const collect = (nodes) => {
+    for (const n of nodes) {
+      flatMap.set(n.id, n);
+      if (n.children?.length) collect(n.children);
+    }
+  };
+  collect(rootChildren);
+
+  for (const ov of overrides) {
+    if (!ov.guid) continue;
+    const targetId = iofigma.kiwi.guid(ov.guid);
+    const target = flatMap.get(targetId);
+    if (!target) continue;
+
+    // Text content override
+    if (target.type === "TEXT" && typeof ov.textData?.characters === "string") {
+      target.characters = ov.textData.characters;
+    }
+    if (ov.visible !== undefined) target.visible = ov.visible;
+    if (ov.opacity !== undefined) target.opacity = ov.opacity;
+  }
+}
+
+/**
+ * Recursively resolve nested INSTANCE nodes within a derived tree.
+ * When a shared component itself contains instances of other shared components,
+ * those nested instances also carry their own derivedSymbolData.
+ */
+function resolveNestedInstances(nodes, guidToKiwi, message, depth = 0) {
+  if (depth > 10) return; // guard against circular references
+  for (const node of nodes) {
+    if (node.type === "INSTANCE") {
+      const kiwiNC = guidToKiwi.get(node.id);
+      if (kiwiNC?.derivedSymbolData?.length && (!node.children || node.children.length === 0)) {
+        const { rootChildren, guidToKiwi: nestedKiwiMap } =
+          buildDerivedTree(kiwiNC.derivedSymbolData, message, node.id);
+        if (rootChildren.length > 0) {
+          applySymbolOverrides(rootChildren, kiwiNC);
+          node.children = rootChildren;
+          // Recurse into the newly resolved children
+          resolveNestedInstances(rootChildren, nestedKiwiMap, message, depth + 1);
+        }
+      }
+    }
+    if (node.children?.length) {
+      resolveNestedInstances(node.children, guidToKiwi, message, depth + 1);
+    }
+  }
+}
+
 function resolveSharedComponents(doc, captured) {
   if (!captured?.derived?.size) return 0;
 
@@ -65,51 +212,15 @@ function resolveSharedComponents(doc, captured) {
   for (const [instanceGuid, kiwiInstance] of derived) {
     const derivedNCs = kiwiInstance.derivedSymbolData;
 
-    // Convert derived nodeChanges to REST-like nodes using the same factory
-    const nodes = derivedNCs
-      .map((nc) => origFactoryNode(nc, message))
-      .filter(Boolean);
-    if (nodes.length === 0) continue;
-
-    // Build lookup maps: guid → REST-like node, guid → raw kiwi nodeChange
-    const guidToNode = new Map();
-    nodes.forEach((n) => guidToNode.set(n.id, n));
-
-    const guidToKiwi = new Map();
-    derivedNCs.forEach((nc) => {
-      if (nc.guid) guidToKiwi.set(iofigma.kiwi.guid(nc.guid), nc);
-    });
-
-    // Build parent-child relationships (mirrors buildChildrenRelationsInPlace)
-    nodes.forEach((node) => {
-      const kiwi = guidToKiwi.get(node.id);
-      if (!kiwi?.parentIndex?.guid) return;
-      const parentGuid = iofigma.kiwi.guid(kiwi.parentIndex.guid);
-      const parent = guidToNode.get(parentGuid);
-      if (parent && "children" in parent) {
-        if (!parent.children) parent.children = [];
-        parent.children.push(node);
-      }
-    });
-
-    // Sort children by fractional position index
-    guidToNode.forEach((parent) => {
-      if (!parent.children?.length) return;
-      parent.children.sort((a, b) => {
-        const aPos = guidToKiwi.get(a.id)?.parentIndex?.position ?? "";
-        const bPos = guidToKiwi.get(b.id)?.parentIndex?.position ?? "";
-        return aPos.localeCompare(bPos);
-      });
-    });
-
-    // Find root children — direct children of the INSTANCE node
-    const rootChildren = nodes.filter((node) => {
-      const kiwi = guidToKiwi.get(node.id);
-      if (!kiwi?.parentIndex?.guid) return false;
-      return iofigma.kiwi.guid(kiwi.parentIndex.guid) === instanceGuid;
-    });
-
+    const { rootChildren, guidToKiwi } =
+      buildDerivedTree(derivedNCs, message, instanceGuid);
     if (rootChildren.length === 0) continue;
+
+    // Apply text / visibility overrides from the instance
+    applySymbolOverrides(rootChildren, kiwiInstance);
+
+    // Recursively resolve nested shared component instances
+    resolveNestedInstances(rootChildren, guidToKiwi, message);
 
     // Patch the INSTANCE node in _figFile with resolved children
     const instanceNode = findNodeInFigFile(doc._figFile, instanceGuid);
@@ -331,4 +442,67 @@ export async function renderFigmaBuffer(buffer) {
   });
 
   return { frameName: firstFrame.name, imageDataUrl, frameCount: frames.length };
+}
+
+// ---------------------------------------------------------------------------
+// HTML-based rendering: convert Figma node tree → HTML → PNG.
+// This bypasses the WASM renderer entirely, producing higher-fidelity output
+// by leveraging the browser's own layout and text rendering.
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert a parsed Figma frame to an HTML document string.
+ *
+ * @param {FigmaDocument} doc - parsed Figma document (from parseFigmaFrames)
+ * @param {string} frameId - the frame node ID to convert
+ * @returns {{ html: string, frameName: string, width: number, height: number } | null}
+ */
+export function figmaFrameToHtml(doc, frameId) {
+  const node = findNodeInFigFile(doc._figFile, frameId);
+  if (!node) return null;
+
+  const width = node.size?.x ?? 393;
+  const height = node.size?.y ?? 852;
+  const html = figmaNodeToHtml(node, { width, height });
+
+  return {
+    html,
+    frameName: node.name || "Figma Frame",
+    width,
+    height,
+  };
+}
+
+/**
+ * High-level entry point: parse a Figma clipboard buffer, convert each frame
+ * to HTML, and render to PNG using the browser's own rendering engine.
+ *
+ * @param {Uint8Array} buffer - decoded fig-kiwi binary from clipboard
+ * @returns {Promise<Array<{ frameName: string, imageDataUrl: string, html: string, width: number, height: number }>>}
+ */
+export async function convertFigmaBuffer(buffer) {
+  const { frames, document: doc } = parseFigmaFrames(buffer);
+  if (frames.length === 0) throw new Error("No frames found in Figma clipboard data");
+
+  const results = [];
+  for (const frame of frames) {
+    const converted = figmaFrameToHtml(doc, frame.id);
+    if (!converted) continue;
+
+    const imageDataUrl = await renderHtmlToImage(
+      converted.html,
+      Math.ceil(converted.width),
+      Math.ceil(converted.height),
+    );
+
+    results.push({
+      frameName: converted.frameName,
+      imageDataUrl,
+      html: converted.html,
+      width: converted.width,
+      height: converted.height,
+    });
+  }
+
+  return results;
 }

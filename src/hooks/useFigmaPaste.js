@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { isFigmaClipboard, extractFigmaData, parseFigmaFrames, renderFigmaBuffer } from "../utils/parseFigmaClipboard";
+import { isFigmaClipboard, extractFigmaData, parseFigmaFrames, convertFigmaBuffer } from "../utils/parseFigmaClipboard";
 
 // Time window (ms) to apply stashed Figma metadata to a regular image paste.
 // After detecting Figma clipboard and prompting "Copy as PNG", the user re-copies
 // with Shift+Cmd+C and pastes. The stashed frame name is applied to that paste.
-const FIGMA_STASH_TTL = 30000;
+const FIGMA_STASH_TTL = 60000;
 
 export function useFigmaPaste({ handlePaste, addScreenAtCenter }) {
   const [figmaProcessing, setFigmaProcessing] = useState(false);
@@ -63,26 +63,50 @@ export function useFigmaPaste({ handlePaste, addScreenAtCenter }) {
             };
             reader.readAsDataURL(blob);
           } else {
-            // Figma Web: no native PNG. Render via WASM with IMAGE fills
-            // stripped (they have no pixel data and would show checker patterns).
-            // Stash metadata so a follow-up Shift+Cmd+C paste inherits the name.
-            figmaStashRef.current = { frameName, figmaSource, stashedAt: Date.now() };
+            // Figma Web: no native PNG available.
+            // Convert the Figma node tree to HTML and render via the browser's
+            // own layout engine. This produces higher-fidelity output than the
+            // WASM renderer (correct fonts, colors, and layout).
             setFigmaProcessing(true);
 
             try {
-              const rendered = await renderFigmaBuffer(figmaData.buffer);
-              if (rendered.frameCount > 1) {
-                alert("Multiple frames detected. Only the first frame was imported. Please copy and paste one frame at a time for best results.");
+              const converted = await convertFigmaBuffer(figmaData.buffer);
+              const GAP = 40;
+
+              for (let i = 0; i < converted.length; i++) {
+                const frame = converted[i];
+                const frameFigmaSource = {
+                  fileKey: figmaData.meta.fileKey,
+                  frameName: frame.frameName,
+                  importedAt: new Date().toISOString(),
+                };
+                addScreenAtCenter(
+                  frame.imageDataUrl,
+                  frame.frameName,
+                  i * (220 + GAP),
+                  { figmaSource: frameFigmaSource, sourceHtml: frame.html },
+                );
               }
-              addScreenAtCenter(rendered.imageDataUrl, rendered.frameName, 0, { figmaSource });
-              setFigmaError(
-                "Tip: For pixel-perfect results, use Shift+Cmd+C in Figma to copy as PNG, then paste here.",
-              );
+
+              // Stash metadata for follow-up Shift+Cmd+C pixel-perfect paste
+              figmaStashRef.current = {
+                frameName: converted[0]?.frameName ?? frameName,
+                figmaSource,
+                stashedAt: Date.now(),
+                frameCount: converted.length,
+              };
+
+              if (converted.length > 0) {
+                setFigmaError(
+                  `${converted.length} screen${converted.length > 1 ? "s" : ""} imported from Figma. ` +
+                  "For pixel-perfect images, use \u21E7\u2318C in Figma, then paste here.",
+                );
+              }
             } catch (err) {
-              if (import.meta.env.DEV) console.error("[Figma] WASM render failed:", err);
+              if (import.meta.env.DEV) console.error("[Figma] HTML conversion failed:", err);
               setFigmaError(
-                `Figma frame "${frameName}" detected but rendering failed. ` +
-                "Try Shift+Cmd+C in Figma to copy as PNG, then paste here.",
+                `Figma frame "${frameName}" detected but conversion failed. ` +
+                "Try \u21E7\u2318C in Figma to copy as PNG, then paste here.",
               );
             } finally {
               setFigmaProcessing(false);
@@ -120,10 +144,10 @@ export function useFigmaPaste({ handlePaste, addScreenAtCenter }) {
     return () => document.removeEventListener("paste", onPaste);
   }, [handlePaste, addScreenAtCenter]);
 
-  // Auto-dismiss Figma error after 10 seconds (longer for actionable guidance)
+  // Auto-dismiss Figma notification after 20 seconds
   useEffect(() => {
     if (!figmaError) return;
-    const timer = setTimeout(() => setFigmaError(null), 10000);
+    const timer = setTimeout(() => setFigmaError(null), 20000);
     return () => clearTimeout(timer);
   }, [figmaError]);
 

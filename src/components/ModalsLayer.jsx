@@ -206,12 +206,13 @@ export function ModalsLayer({
       {figmaError && (
         <div style={{
           position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          background: COLORS.danger, color: "#fff", padding: "10px 20px", borderRadius: 8,
+          background: figmaError.startsWith("Figma frame") ? COLORS.danger : COLORS.accent,
+          color: "#fff", padding: "10px 20px", borderRadius: 8,
           fontFamily: FONTS.ui, fontSize: 13, zIndex: Z_INDEX.modal + 10,
           boxShadow: "0 4px 16px rgba(0,0,0,0.3)", cursor: "pointer",
-          maxWidth: 480,
+          maxWidth: 520,
         }} onClick={() => setFigmaError(null)}>
-          Figma paste failed: {figmaError}
+          {figmaError}
         </div>
       )}
 
