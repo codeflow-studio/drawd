@@ -42,10 +42,11 @@ export function CommentComposer({ clientX, clientY, onSubmit, onCancel }) {
     onSubmit(trimmed);
   };
 
-  // Keep composer in viewport bounds
+  // Keep composer in viewport bounds (both axes)
   const COMPOSER_WIDTH = 280;
+  const COMPOSER_HEIGHT = 120;
   const left = Math.min(clientX, window.innerWidth - COMPOSER_WIDTH - 12);
-  const top = clientY + 12;
+  const top = Math.min(clientY + 12, window.innerHeight - COMPOSER_HEIGHT - 12);
 
   return (
     <div

@@ -229,6 +229,8 @@ export class FlowState {
       group.screenIds = group.screenIds.filter((id) => id !== screenId);
     }
 
+    this.comments = this.comments.filter((c) => c.screenId !== screenId);
+
     this._autoSave();
     return { removedConnectionCount: removed.length };
   }
@@ -353,6 +355,9 @@ export class FlowState {
 
     // Remove associated connections
     this.connections = this.connections.filter((c) => c.hotspotId !== hotspotId);
+    this.comments = this.comments.filter(
+      (c) => !(c.targetType === "hotspot" && c.targetId === hotspotId)
+    );
     this._autoSave();
   }
 
@@ -414,6 +419,9 @@ export class FlowState {
     const idx = this.connections.findIndex((c) => c.id === connectionId);
     if (idx === -1) throw new Error(`Connection not found: ${connectionId}`);
     this.connections.splice(idx, 1);
+    this.comments = this.comments.filter(
+      (c) => !(c.targetType === "connection" && c.targetId === connectionId)
+    );
     this._autoSave();
   }
 

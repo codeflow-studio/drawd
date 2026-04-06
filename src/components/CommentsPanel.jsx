@@ -109,7 +109,7 @@ function CommentCard({
             Resolve
           </button>
         )}
-        {comment.resolved && canModerate && (
+        {comment.resolved && (canModerate || (comment.authorPeerId && comment.authorPeerId === selfPeerId)) && (
           <button
             onClick={(e) => { e.stopPropagation(); onUnresolve(comment.id); }}
             style={{

@@ -93,12 +93,12 @@ export function handleCommentTool(name, args, state) {
 
     case "update_comment": {
       const comment = state.updateComment(args.commentId, args.text);
-      return { success: true, commentId: comment.id };
+      return { success: true, commentId: comment?.id ?? args.commentId };
     }
 
     case "resolve_comment": {
       const comment = state.resolveComment(args.commentId, args.resolvedBy || "MCP Agent");
-      return { success: true, commentId: comment.id, resolvedBy: comment.resolvedBy };
+      return { success: true, commentId: comment?.id ?? args.commentId, resolvedBy: comment?.resolvedBy ?? args.resolvedBy ?? "MCP Agent" };
     }
 
     case "delete_comment": {

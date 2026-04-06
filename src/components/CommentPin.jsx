@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useLayoutEffect } from "react";
 import { COLORS, FONTS, Z_INDEX } from "../styles/theme";
 
 function timeAgo(isoString) {
@@ -20,6 +20,14 @@ export function CommentPin({ comment, count, isSelected, onClick, onDeselect }) 
   const color = comment.authorColor || "#61afef";
   const resolved = comment.resolved;
   const pinRef = useRef(null);
+  const [rect, setRect] = useState(null);
+
+  // Compute fixed-position for the popover based on the pin's viewport rect.
+  // useLayoutEffect ensures the DOM has settled before reading getBoundingClientRect.
+  useLayoutEffect(() => {
+    if (isSelected) setRect(pinRef.current?.getBoundingClientRect() ?? null);
+    else setRect(null);
+  }, [isSelected]);
 
   // Close popover when clicking outside the pin+popover container
   useEffect(() => {
@@ -32,9 +40,6 @@ export function CommentPin({ comment, count, isSelected, onClick, onDeselect }) 
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isSelected, onDeselect]);
-
-  // Compute fixed-position for the popover based on the pin's viewport rect
-  const rect = isSelected ? pinRef.current?.getBoundingClientRect() : null;
   const POPOVER_WIDTH = 240;
   const popoverLeft = rect
     ? Math.min(rect.left + rect.width / 2 + 8, window.innerWidth - POPOVER_WIDTH - 12)
