@@ -499,24 +499,63 @@ export function useScreenManager(pan, zoom, canvasRef, commentCallbacks = {}) {
 
     if (hotspot.action === "conditional") {
       setConnections((prev) => {
-        // Remove all existing connections for this hotspot
         let updated = prev.filter((c) => c.hotspotId !== hotspot.id);
-        // Create one connection per condition branch with a target
         (hotspot.conditions || []).forEach((cond, i) => {
-          if (cond.targetScreenId) {
+          const branchAction = cond.action || "navigate";
+
+          // Main branch connection (for navigate/modal with target)
+          if ((branchAction === "navigate" || branchAction === "modal") && cond.targetScreenId) {
             updated.push({
               id: generateId(),
               fromScreenId: screenId,
               toScreenId: cond.targetScreenId,
               hotspotId: hotspot.id,
-              label: hotspot.label ? `${hotspot.label} (${cond.label || `branch ${i + 1}`})` : (cond.label || `branch ${i + 1}`),
-              action: "navigate",
+              label: hotspot.label
+                ? `${hotspot.label} (${cond.label || `branch ${i + 1}`})`
+                : (cond.label || `branch ${i + 1}`),
+              action: branchAction,
               connectionPath: `condition-${i}`,
               condition: cond.label || "",
               transitionType: null,
               transitionLabel: "",
               dataFlow: cond.dataFlow || [],
             });
+          }
+
+          // API follow-up connections
+          if (branchAction === "api") {
+            const successAction = cond.onSuccessAction || "";
+            if ((successAction === "navigate" || successAction === "modal") && cond.onSuccessTargetId) {
+              updated.push({
+                id: generateId(),
+                fromScreenId: screenId,
+                toScreenId: cond.onSuccessTargetId,
+                hotspotId: hotspot.id,
+                label: `${cond.label || `branch ${i + 1}`} (success)`,
+                action: successAction,
+                connectionPath: `condition-${i}-api-success`,
+                condition: cond.label || "",
+                transitionType: null,
+                transitionLabel: "",
+                dataFlow: cond.onSuccessDataFlow || [],
+              });
+            }
+            const errorAction = cond.onErrorAction || "";
+            if ((errorAction === "navigate" || errorAction === "modal") && cond.onErrorTargetId) {
+              updated.push({
+                id: generateId(),
+                fromScreenId: screenId,
+                toScreenId: cond.onErrorTargetId,
+                hotspotId: hotspot.id,
+                label: `${cond.label || `branch ${i + 1}`} (error)`,
+                action: errorAction,
+                connectionPath: `condition-${i}-api-error`,
+                condition: cond.label || "",
+                transitionType: null,
+                transitionLabel: "",
+                dataFlow: cond.onErrorDataFlow || [],
+              });
+            }
           }
         });
         return updated;
@@ -745,7 +784,7 @@ export function useScreenManager(pan, zoom, canvasRef, commentCallbacks = {}) {
     setConnections((prev) => prev.filter((c) => c.conditionGroupId !== conditionGroupId));
   }, [screens, connections, documents, pushHistory]);
 
-  const convertToConditionalGroup = useCallback((existingConnId, fromScreenId, toScreenId) => {
+  const convertToConditionalGroup = useCallback((existingConnId, fromScreenId, toScreenId, hotspotId = null) => {
     pushHistory(screens, connections, documents);
     const groupId = generateId();
     setConnections((prev) => {
@@ -758,7 +797,7 @@ export function useScreenManager(pan, zoom, canvasRef, commentCallbacks = {}) {
         id: generateId(),
         fromScreenId,
         toScreenId,
-        hotspotId: null,
+        hotspotId,
         label: "",
         action: "navigate",
         connectionPath: "condition-1",
@@ -772,7 +811,7 @@ export function useScreenManager(pan, zoom, canvasRef, commentCallbacks = {}) {
     return groupId;
   }, [screens, connections, documents, pushHistory]);
 
-  const addToConditionalGroup = useCallback((fromScreenId, toScreenId, conditionGroupId) => {
+  const addToConditionalGroup = useCallback((fromScreenId, toScreenId, conditionGroupId, hotspotId = null) => {
     pushHistory(screens, connections, documents);
     setConnections((prev) => {
       const groupConns = prev.filter((c) => c.conditionGroupId === conditionGroupId);
@@ -784,7 +823,7 @@ export function useScreenManager(pan, zoom, canvasRef, commentCallbacks = {}) {
         id: generateId(),
         fromScreenId,
         toScreenId,
-        hotspotId: null,
+        hotspotId,
         label: "",
         action: "navigate",
         connectionPath: `condition-${maxIndex + 1}`,

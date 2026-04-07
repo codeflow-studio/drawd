@@ -275,7 +275,7 @@ export default function Drawd({ initialRoomCode }) {
     setConditionalPrompt, setEditingConditionGroup,
     setConnectionTypePrompt,
     setHotspotModal, setConnectionEditModal,
-    quickConnectHotspot, addConnection, addToConditionalGroup,
+    quickConnectHotspot, addConnection, addToConditionalGroup, convertToConditionalGroup,
     onStartConnect,
     activeTool, captureDragSnapshot,
     handleDragStart, handleMultiDragStart,

@@ -237,13 +237,21 @@ Annotate what data passes between screens along a connection. For example, "prod
 
 Conditional branching lets you model flows where a single action leads to different screens depending on a condition — for example, different outcomes based on whether a user is authenticated.
 
-### From a hotspot
+### From a hotspot (modal)
 
-In the Hotspot modal, set the Action to "Conditional". Add branch conditions using the "Add Branch" button. Each branch has a label (the condition text) and a target screen. The generated instructions include all branches with their labels.
+In the Hotspot modal, set the Action to "Conditional". Add branch conditions using the "Add Branch" button. Each branch has a label (the condition text) and its own action type — Navigate, Back, Modal, API Call, or Custom. For API branches, you can define the endpoint, method, request/response schemas, and success/error follow-up actions. The generated instructions include all branches with their labels and action details.
+
+### From a hotspot (drag-to-connect)
+
+Drag from a hotspot's green handle to a target screen to create a connection. Drag from the same hotspot to a second screen and the connection automatically converts into a conditional group with amber-colored lines and inline label inputs. Continue dragging to additional screens to add more branches. Duplicate targets are ignored.
 
 ### From a plain connection (drag-to-create)
 
 When you drag a second connection from the same screen (without a hotspot), Drawd prompts "Create conditional branches?" — click Yes to convert both connections into an amber conditional group. Drag additional connections from the same screen to add more branches automatically.
+
+### Per-branch actions
+
+Each condition branch can have a different action type. For example, one branch might navigate to a success screen while another calls an API. When a branch uses the API action, you can configure success and error follow-up actions — each with their own target screen or custom description.
 
 ### Editing condition labels
 

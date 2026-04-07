@@ -295,8 +295,29 @@ const HOTSPOT_ACTION_RENDERERS = {
       if (!h.conditions?.length) return null;
       let md = `**${h.label || "Unnamed"}** \u2014 Conditional branches:\n\n`;
       h.conditions.forEach((cond, ci) => {
-        const t = cond.targetScreenId ? screens.find((ts) => ts.id === cond.targetScreenId) : null;
-        md += `- ${cond.label || `branch ${ci + 1}`} \u2192 ${t?.name || "none"}\n`;
+        const branchAction = cond.action || "navigate";
+        const branchLabel = cond.label || `branch ${ci + 1}`;
+
+        if (branchAction === "navigate" || branchAction === "modal") {
+          const t = cond.targetScreenId ? screens.find((ts) => ts.id === cond.targetScreenId) : null;
+          md += `- **${branchLabel}** \u2192 ${branchAction} to ${t?.name || "none"}\n`;
+        } else if (branchAction === "back") {
+          md += `- **${branchLabel}** \u2192 go back\n`;
+        } else if (branchAction === "api") {
+          const method = cond.apiMethod || "GET";
+          const endpoint = cond.apiEndpoint || "/api/...";
+          md += `- **${branchLabel}** \u2192 API ${method} \`${endpoint}\`\n`;
+          if (cond.onSuccessAction) {
+            const st = cond.onSuccessTargetId ? screens.find((s) => s.id === cond.onSuccessTargetId) : null;
+            md += `  - on success: ${cond.onSuccessAction}${st ? ` to ${st.name}` : ""}\n`;
+          }
+          if (cond.onErrorAction) {
+            const et = cond.onErrorTargetId ? screens.find((s) => s.id === cond.onErrorTargetId) : null;
+            md += `  - on error: ${cond.onErrorAction}${et ? ` to ${et.name}` : ""}\n`;
+          }
+        } else if (branchAction === "custom") {
+          md += `- **${branchLabel}** \u2192 ${cond.customDescription || "custom action"}\n`;
+        }
       });
       md += `\n`;
       return md;
