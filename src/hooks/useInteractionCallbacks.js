@@ -9,7 +9,7 @@ export function useInteractionCallbacks({
   setConditionalPrompt, setEditingConditionGroup,
   setConnectionTypePrompt,
   setHotspotModal, setConnectionEditModal,
-  quickConnectHotspot, addConnection: _addConnection, addToConditionalGroup,
+  quickConnectHotspot, addConnection: _addConnection, addToConditionalGroup, convertToConditionalGroup,
   onStartConnect,
   activeTool, captureDragSnapshot,
   handleDragStart, handleMultiDragStart,
@@ -39,10 +39,40 @@ export function useInteractionCallbacks({
 
   const onConnectComplete = useCallback((targetScreenId) => {
     if (hotspotInteraction?.mode === "hotspot-drag") {
-      if (targetScreenId !== hotspotInteraction.screenId) {
-        quickConnectHotspot(hotspotInteraction.screenId, hotspotInteraction.hotspotId, targetScreenId);
+      const srcScreenId = hotspotInteraction.screenId;
+      const srcHotspotId = hotspotInteraction.hotspotId;
+
+      if (targetScreenId !== srcScreenId) {
+        const existingHotspotConns = connections.filter(
+          (c) => c.fromScreenId === srcScreenId && c.hotspotId === srcHotspotId
+        );
+
+        // Case 1: Already a conditional group — add a new branch
+        const existingGroup = existingHotspotConns.find((c) => c.conditionGroupId);
+        if (existingGroup) {
+          const isDuplicate = existingHotspotConns.some((c) => c.toScreenId === targetScreenId);
+          if (!isDuplicate) {
+            addToConditionalGroup(srcScreenId, targetScreenId, existingGroup.conditionGroupId, srcHotspotId);
+            setEditingConditionGroup(existingGroup.conditionGroupId);
+          }
+        }
+        // Case 2: One existing plain connection — convert to conditional
+        else if (existingHotspotConns.length > 0) {
+          const isDuplicate = existingHotspotConns.some((c) => c.toScreenId === targetScreenId);
+          if (!isDuplicate) {
+            const groupId = convertToConditionalGroup(
+              existingHotspotConns[0].id, srcScreenId, targetScreenId, srcHotspotId
+            );
+            setEditingConditionGroup(groupId);
+          }
+        }
+        // Case 3: No existing connections — normal quick connect
+        else {
+          quickConnectHotspot(srcScreenId, srcHotspotId, targetScreenId);
+        }
       }
-      setHotspotInteraction({ mode: "selected", screenId: hotspotInteraction.screenId, hotspotId: hotspotInteraction.hotspotId });
+
+      setHotspotInteraction({ mode: "selected", screenId: srcScreenId, hotspotId: srcHotspotId });
       setHoverTarget(null);
       return;
     }
@@ -77,7 +107,7 @@ export function useInteractionCallbacks({
     const promptY = fromScreen ? fromScreen.y : 0;
     setConnectionTypePrompt({ fromId, targetScreenId, x: promptX, y: promptY });
     cancelConnecting();
-  }, [connecting, cancelConnecting, hotspotInteraction, setHotspotInteraction, quickConnectHotspot, connections, screens, addToConditionalGroup, setEditingConditionGroup, setHoverTarget, setConditionalPrompt, setConnectionTypePrompt]);
+  }, [connecting, cancelConnecting, hotspotInteraction, setHotspotInteraction, quickConnectHotspot, connections, screens, addToConditionalGroup, convertToConditionalGroup, setEditingConditionGroup, setHoverTarget, setConditionalPrompt, setConnectionTypePrompt]);
 
   // Open hotspot modal when a draw gesture completes
   useEffect(() => {

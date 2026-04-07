@@ -294,8 +294,18 @@ export class FlowState {
     // Auto-create connections for conditional branches
     if (hs.action === "conditional" && Array.isArray(hs.conditions)) {
       hs.conditions.forEach((cond, i) => {
-        if (cond.targetScreenId) {
-          this._addHotspotConnection(screenId, cond.targetScreenId, hs.id, "navigate", `condition-${i}`);
+        const branchAction = cond.action || "navigate";
+        if ((branchAction === "navigate" || branchAction === "modal") && cond.targetScreenId) {
+          this._addHotspotConnection(screenId, cond.targetScreenId, hs.id, branchAction, `condition-${i}`);
+        }
+        // API success/error follow-up connections
+        if (branchAction === "api") {
+          if (cond.onSuccessTargetId && (cond.onSuccessAction === "navigate" || cond.onSuccessAction === "modal")) {
+            this._addHotspotConnection(screenId, cond.onSuccessTargetId, hs.id, cond.onSuccessAction, `condition-${i}-api-success`);
+          }
+          if (cond.onErrorTargetId && (cond.onErrorAction === "navigate" || cond.onErrorAction === "modal")) {
+            this._addHotspotConnection(screenId, cond.onErrorTargetId, hs.id, cond.onErrorAction, `condition-${i}-api-error`);
+          }
         }
       });
     }

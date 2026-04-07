@@ -60,6 +60,23 @@ export function importFlow(fileText) {
         if (!hs.responseSchema) hs.responseSchema = "";
         if (!hs.customDescription) hs.customDescription = "";
         if (!hs.conditions) hs.conditions = [];
+        hs.conditions.forEach((cond) => {
+          if (!cond.action) cond.action = "navigate";
+          if (!cond.customDescription) cond.customDescription = "";
+          if (!cond.apiEndpoint) cond.apiEndpoint = "";
+          if (!cond.apiMethod) cond.apiMethod = "GET";
+          if (!cond.documentId) cond.documentId = null;
+          if (!cond.requestSchema) cond.requestSchema = "";
+          if (!cond.responseSchema) cond.responseSchema = "";
+          if (!cond.onSuccessAction) cond.onSuccessAction = "";
+          if (!cond.onSuccessTargetId) cond.onSuccessTargetId = "";
+          if (!cond.onSuccessCustomDesc) cond.onSuccessCustomDesc = "";
+          if (!cond.onSuccessDataFlow) cond.onSuccessDataFlow = [];
+          if (!cond.onErrorAction) cond.onErrorAction = "";
+          if (!cond.onErrorTargetId) cond.onErrorTargetId = "";
+          if (!cond.onErrorCustomDesc) cond.onErrorCustomDesc = "";
+          if (!cond.onErrorDataFlow) cond.onErrorDataFlow = [];
+        });
         if (!hs.onSuccessAction) hs.onSuccessAction = "";
         if (!hs.onSuccessTargetId) hs.onSuccessTargetId = "";
         if (!hs.onSuccessCustomDesc) hs.onSuccessCustomDesc = "";

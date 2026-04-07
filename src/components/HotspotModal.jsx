@@ -123,8 +123,14 @@ export function HotspotModal({ screen, hotspot, connection, screens, documents =
   const [conditions, setConditions] = useState(
     hotspot?.conditions?.length > 0
       ? hotspot.conditions
-      : [{ id: generateId(), label: "", targetScreenId: "" }]
+      : [{ id: generateId(), label: "", targetScreenId: "", action: "navigate", dataFlow: [] }]
   );
+
+  const updateCondition = (index, patch) => {
+    const updated = [...conditions];
+    updated[index] = { ...updated[index], ...patch };
+    setConditions(updated);
+  };
 
   // Transition (read from associated connection when opened via double-click)
   const [transitionType, setTransitionType] = useState(connection?.transitionType || "");
@@ -308,7 +314,15 @@ export function HotspotModal({ screen, hotspot, connection, screens, documents =
             dataFlow: (action === "navigate" || action === "modal") ? dataFlow : [],
             onSuccessDataFlow: action === "api" ? onSuccessDataFlow : [],
             onErrorDataFlow: action === "api" ? onErrorDataFlow : [],
-            conditions: action === "conditional" ? conditions : [],
+            conditions: action === "conditional" ? conditions.map((cond) => ({
+              ...cond,
+              action: cond.action || "navigate",
+              targetScreenId: (cond.action === "navigate" || cond.action === "modal" || !cond.action)
+                ? (cond.targetScreenId || "") : "",
+              customDescription: cond.action === "custom" ? (cond.customDescription || "") : "",
+              dataFlow: (cond.action === "navigate" || cond.action === "modal" || !cond.action)
+                ? (cond.dataFlow || []) : [],
+            })) : [],
             x, y, w, h,
             transitionType,
             transitionLabel: transitionType === "custom" ? transitionLabel : "",
@@ -403,76 +417,171 @@ export function HotspotModal({ screen, hotspot, connection, screens, documents =
                 </div>
 
                 {conditions.map((cond, i) => (
-                  <div key={cond.id} style={{ marginBottom: 8 }}>
-                    <div style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "flex-end",
-                    }}>
+                  <div key={cond.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                       <label style={{ ...styles.monoLabel, flex: 1 }}>
                         {i === 0 ? "CONDITION" : ""}
                         <input
                           value={cond.label}
-                          onChange={(e) => {
-                            const updated = [...conditions];
-                            updated[i] = { ...updated[i], label: e.target.value };
-                            setConditions(updated);
-                          }}
+                          onChange={(e) => updateCondition(i, { label: e.target.value })}
                           placeholder={i === conditions.length - 1 ? "e.g. otherwise" : "e.g. user is subscriber"}
                           style={styles.input}
                         />
                       </label>
-                      <label style={{ ...styles.monoLabel, flex: 1 }}>
-                        {i === 0 ? "TARGET SCREEN" : ""}
-                        <select
-                          value={cond.targetScreenId || ""}
-                          onChange={(e) => {
-                            const updated = [...conditions];
-                            updated[i] = { ...updated[i], targetScreenId: e.target.value || "" };
-                            setConditions(updated);
-                          }}
-                          style={styles.select}
-                        >
-                          <option value="">-- Select --</option>
-                          {otherScreens.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
-                      </label>
                       {conditions.length > 1 && (
-                        <button
-                          type="button"
+                        <button type="button"
                           onClick={() => setConditions(conditions.filter((_, j) => j !== i))}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: COLORS.danger,
-                            cursor: "pointer",
-                            fontSize: 16,
-                            padding: "6px",
-                            marginBottom: 6,
-                          }}
-                        >
-                          &#10005;
-                        </button>
+                          style={{ background: "none", border: "none", color: COLORS.danger, cursor: "pointer", fontSize: 16, padding: "6px", marginBottom: 6 }}
+                        >&#10005;</button>
                       )}
                     </div>
-                    <div style={{ marginTop: 6, marginLeft: 8 }}>
-                      <DataFlowEditor
-                        items={cond.dataFlow || []}
-                        onChange={(newDataFlow) => {
-                          const updated = [...conditions];
-                          updated[i] = { ...updated[i], dataFlow: newDataFlow };
-                          setConditions(updated);
-                        }}
-                      />
-                    </div>
+
+                    <label style={{ ...styles.monoLabel, marginTop: 8 }}>
+                      ACTION
+                      <select
+                        value={cond.action || "navigate"}
+                        onChange={(e) => updateCondition(i, { action: e.target.value })}
+                        style={styles.select}
+                      >
+                        <option value="navigate">Navigate to screen</option>
+                        <option value="back">Go back</option>
+                        <option value="modal">Open modal/overlay</option>
+                        <option value="api">API call</option>
+                        <option value="custom">Custom action</option>
+                      </select>
+                    </label>
+
+                    {(cond.action === "navigate" || cond.action === "modal" || !cond.action) && (
+                      <>
+                        <label style={{ ...styles.monoLabel, marginTop: 8 }}>
+                          TARGET SCREEN
+                          <select
+                            value={cond.targetScreenId || ""}
+                            onChange={(e) => updateCondition(i, { targetScreenId: e.target.value })}
+                            style={styles.select}
+                          >
+                            <option value="">-- Select --</option>
+                            {otherScreens.map((s) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <div style={{ marginTop: 6 }}>
+                          <DataFlowEditor
+                            items={cond.dataFlow || []}
+                            onChange={(val) => updateCondition(i, { dataFlow: val })}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {cond.action === "custom" && (
+                      <label style={{ ...styles.monoLabel, marginTop: 8 }}>
+                        DESCRIPTION
+                        <textarea
+                          value={cond.customDescription || ""}
+                          onChange={(e) => updateCondition(i, { customDescription: e.target.value })}
+                          placeholder="Describe what happens..."
+                          rows={2}
+                          style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
+                        />
+                      </label>
+                    )}
+
+                    {(cond.action === "api") && (
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <label style={{ ...styles.monoLabel, flex: 1 }}>
+                            API ENDPOINT
+                            <input
+                              value={cond.apiEndpoint || ""}
+                              onChange={(e) => updateCondition(i, { apiEndpoint: e.target.value })}
+                              placeholder="/api/endpoint"
+                              style={styles.input}
+                            />
+                          </label>
+                          <label style={styles.monoLabel}>
+                            METHOD
+                            <select
+                              value={cond.apiMethod || "GET"}
+                              onChange={(e) => updateCondition(i, { apiMethod: e.target.value })}
+                              style={{ ...styles.select, width: 90 }}
+                            >
+                              {["GET", "POST", "PUT", "DELETE", "PATCH"].map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <label style={styles.monoLabel}>
+                          REQUEST SCHEMA
+                          <textarea
+                            value={cond.requestSchema || ""}
+                            onChange={(e) => updateCondition(i, { requestSchema: e.target.value })}
+                            placeholder='{ "field": "type" }'
+                            rows={2}
+                            style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
+                          />
+                        </label>
+                        <label style={styles.monoLabel}>
+                          RESPONSE SCHEMA
+                          <textarea
+                            value={cond.responseSchema || ""}
+                            onChange={(e) => updateCondition(i, { responseSchema: e.target.value })}
+                            placeholder='{ "field": "type" }'
+                            rows={2}
+                            style={{ ...styles.input, resize: "vertical", fontFamily: "inherit" }}
+                          />
+                        </label>
+                        {documents.length > 0 && (
+                          <label style={styles.monoLabel}>
+                            API DOCUMENT
+                            <select
+                              value={cond.documentId || ""}
+                              onChange={(e) => updateCondition(i, { documentId: e.target.value || null })}
+                              style={styles.select}
+                            >
+                              <option value="">-- None --</option>
+                              {documents.map((d) => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        <FollowUpSection
+                          title="On Success"
+                          titleColor="#27ae60"
+                          action={cond.onSuccessAction || ""}
+                          setAction={(val) => updateCondition(i, { onSuccessAction: val })}
+                          targetId={cond.onSuccessTargetId || ""}
+                          setTargetId={(val) => updateCondition(i, { onSuccessTargetId: val })}
+                          customDesc={cond.onSuccessCustomDesc || ""}
+                          setCustomDesc={(val) => updateCondition(i, { onSuccessCustomDesc: val })}
+                          otherScreens={otherScreens}
+                          dataFlow={cond.onSuccessDataFlow || []}
+                          onDataFlowChange={(val) => updateCondition(i, { onSuccessDataFlow: val })}
+                        />
+                        <FollowUpSection
+                          title="On Error"
+                          titleColor="#e74c3c"
+                          action={cond.onErrorAction || ""}
+                          setAction={(val) => updateCondition(i, { onErrorAction: val })}
+                          targetId={cond.onErrorTargetId || ""}
+                          setTargetId={(val) => updateCondition(i, { onErrorTargetId: val })}
+                          customDesc={cond.onErrorCustomDesc || ""}
+                          setCustomDesc={(val) => updateCondition(i, { onErrorCustomDesc: val })}
+                          otherScreens={otherScreens}
+                          dataFlow={cond.onErrorDataFlow || []}
+                          onDataFlowChange={(val) => updateCondition(i, { onErrorDataFlow: val })}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
 
                 <button
                   type="button"
-                  onClick={() => setConditions([...conditions, { id: generateId(), label: "", targetScreenId: "", dataFlow: [] }])}
+                  onClick={() => setConditions([...conditions, { id: generateId(), label: "", targetScreenId: "", action: "navigate", dataFlow: [] }])}
                   style={{
                     width: "100%",
                     padding: "6px 0",
