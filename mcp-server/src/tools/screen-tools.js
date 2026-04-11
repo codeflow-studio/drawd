@@ -1,3 +1,5 @@
+import { DEFAULT_SCREEN_WIDTH } from "../../../src/constants.js";
+
 export const screenTools = [
   {
     name: "create_screen",
@@ -142,6 +144,14 @@ export const screenTools = [
   },
 ];
 
+// The editor stores imageHeight as the *displayed* height on the canvas card,
+// not the raw pixel height. The image renders at 100% of the card's content
+// width (DEFAULT_SCREEN_WIDTH), so we must scale accordingly.
+function displayedImageHeight(rawWidth, rawHeight) {
+  if (!rawWidth || !rawHeight) return null;
+  return Math.round(rawHeight * DEFAULT_SCREEN_WIDTH / rawWidth);
+}
+
 export async function handleScreenTool(name, args, state, renderer) {
   switch (name) {
     case "create_screen": {
@@ -159,7 +169,7 @@ export async function handleScreenTool(name, args, state, renderer) {
         });
         imageData = renderer.toDataUri(result.pngBuffer);
         imageWidth = result.width;
-        imageHeight = result.height;
+        imageHeight = displayedImageHeight(result.width, result.height);
         svgContent = result.svgString || null;
       }
 
@@ -243,8 +253,27 @@ export async function handleScreenTool(name, args, state, renderer) {
         { type: "text", text: JSON.stringify(result, null, 2) },
       ];
       if (imageData) {
-        const base64 = imageData.replace(/^data:image\/\w+;base64,/, "");
-        content.push({ type: "image", data: base64, mimeType: "image/png" });
+        const match = imageData.match(/^data:image\/([^;]+);base64,/);
+        if (match) {
+          const rawBase64 = imageData.slice(match[0].length);
+          const subtype = match[1]; // e.g. "png", "jpeg", "svg+xml"
+
+          if (subtype === "svg+xml") {
+            // MCP image blocks don't support SVG; convert to PNG via resvg
+            try {
+              const { Resvg } = await import("@resvg/resvg-js");
+              const svgString = Buffer.from(rawBase64, "base64").toString("utf-8");
+              const resvg = new Resvg(svgString, { fitTo: { mode: "original" } });
+              const pngBuffer = resvg.render().asPng();
+              const pngBase64 = Buffer.from(pngBuffer).toString("base64");
+              content.push({ type: "image", data: pngBase64, mimeType: "image/png" });
+            } catch {
+              content.push({ type: "text", text: "[SVG image — could not convert to PNG]" });
+            }
+          } else {
+            content.push({ type: "image", data: rawBase64, mimeType: `image/${subtype}` });
+          }
+        }
       }
       return { __contentBlocks: content };
     }
@@ -254,15 +283,16 @@ export async function handleScreenTool(name, args, state, renderer) {
       if (!screen) throw new Error(`Screen not found: ${args.screenId}`);
 
       const result = await renderer.render(args.html, { device: args.device });
+      const imgHeight = displayedImageHeight(result.width, result.height);
       state.updateScreen(args.screenId, {
         imageData: renderer.toDataUri(result.pngBuffer),
         imageWidth: result.width,
-        imageHeight: result.height,
+        imageHeight: imgHeight,
         svgContent: result.svgString || null,
         sourceHtml: args.html,
       });
 
-      return { success: true, imageWidth: result.width, imageHeight: result.height };
+      return { success: true, imageWidth: result.width, imageHeight: imgHeight };
     }
 
     case "batch_create_screens": {
@@ -277,7 +307,7 @@ export async function handleScreenTool(name, args, state, renderer) {
           const result = await renderer.render(def.html, { device: args.device });
           imageData = renderer.toDataUri(result.pngBuffer);
           imageWidth = result.width;
-          imageHeight = result.height;
+          imageHeight = displayedImageHeight(result.width, result.height);
           svgContent = result.svgString || null;
         }
 
