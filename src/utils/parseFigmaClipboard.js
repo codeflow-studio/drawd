@@ -32,6 +32,17 @@ const KIWI_LAYOUT_PROPS = [
   "stackPrimarySizing",
 ];
 
+// Stroke & vector properties from kiwi that the factory drops.
+// Needed for proper stroke-based icon rendering in figmaToHtml.js.
+const KIWI_STROKE_PROPS = [
+  "strokePaints",
+  "strokeWeight",
+  "strokeCap",
+  "strokeJoin",
+  "strokeAlign",
+  "fillPaints",
+];
+
 iofigma.kiwi.factory.node = function (nc, message) {
   if (captureState) {
     captureState.message = message;
@@ -46,6 +57,12 @@ iofigma.kiwi.factory.node = function (nc, message) {
   if (node) {
     for (const prop of KIWI_LAYOUT_PROPS) {
       if (nc[prop] != null) {
+        node[prop] = nc[prop];
+      }
+    }
+    // Preserve stroke properties for vector/icon rendering
+    for (const prop of KIWI_STROKE_PROPS) {
+      if (nc[prop] != null && node[prop] == null) {
         node[prop] = nc[prop];
       }
     }

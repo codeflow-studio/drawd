@@ -311,33 +311,46 @@ function vectorNetworkToSvgPath(network) {
   const { vertices, segments } = network;
   if (!segments?.length || !vertices?.length) return "";
 
+  // Detect format: kiwi uses {x, y} objects; REST API uses [x, y] arrays.
+  const isKiwi = typeof vertices[0]?.x === "number";
+
+  const vx = (v) => (isKiwi ? v.x : v[0]);
+  const vy = (v) => (isKiwi ? v.y : v[1]);
+
   const parts = [];
   let currentStart = null;
   let previousEnd = null;
 
   for (const seg of segments) {
-    const { a, b, ta, tb } = seg;
+    // Kiwi: { start: { vertex, dx, dy }, end: { vertex, dx, dy } }
+    // REST: { a, b, ta: [dx, dy], tb: [dx, dy] }
+    const a = isKiwi ? seg.start.vertex : seg.a;
+    const b = isKiwi ? seg.end.vertex : seg.b;
+    const ta0 = isKiwi ? (seg.start.dx ?? 0) : (seg.ta?.[0] ?? 0);
+    const ta1 = isKiwi ? (seg.start.dy ?? 0) : (seg.ta?.[1] ?? 0);
+    const tb0 = isKiwi ? (seg.end.dx ?? 0) : (seg.tb?.[0] ?? 0);
+    const tb1 = isKiwi ? (seg.end.dy ?? 0) : (seg.tb?.[1] ?? 0);
+
     const start = vertices[a];
     const end = vertices[b];
     if (!start || !end) continue;
 
     if (previousEnd !== a) {
-      parts.push(`M${fmt(start[0])} ${fmt(start[1])}`);
+      parts.push(`M${fmt(vx(start))} ${fmt(vy(start))}`);
       currentStart = a;
     }
 
-    const noTangents =
-      (ta[0] === 0 && ta[1] === 0 && tb[0] === 0 && tb[1] === 0);
+    const noTangents = (ta0 === 0 && ta1 === 0 && tb0 === 0 && tb1 === 0);
 
     if (noTangents) {
-      parts.push(`L${fmt(end[0])} ${fmt(end[1])}`);
+      parts.push(`L${fmt(vx(end))} ${fmt(vy(end))}`);
     } else {
-      const c1x = start[0] + ta[0];
-      const c1y = start[1] + ta[1];
-      const c2x = end[0] + tb[0];
-      const c2y = end[1] + tb[1];
+      const c1x = vx(start) + ta0;
+      const c1y = vy(start) + ta1;
+      const c2x = vx(end) + tb0;
+      const c2y = vy(end) + tb1;
       parts.push(
-        `C${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(end[0])} ${fmt(end[1])}`
+        `C${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(vx(end))} ${fmt(vy(end))}`
       );
     }
 
@@ -598,16 +611,21 @@ function convertShapeNode(node) {
     }
 
     // Fill color
+    // Figma explicitly sets fills=[] when a node has no fill (stroke-only icons).
+    // Use "none" for empty arrays; only fall back to "currentColor" when fills
+    // is undefined (possible inherited fill from boolean operation parent).
     const fills = node.fillPaints ?? node.fills;
-    let fillColor = "currentColor";
+    let fillColor = "none";
     if (fills?.length) {
       const solidFill = fills.find((f) => f.type === "SOLID" && f.visible !== false);
       if (solidFill) {
         fillColor = figmaColorToCss(solidFill.color, solidFill.opacity);
       }
+    } else if (fills == null) {
+      fillColor = "currentColor";
     }
 
-    // Stroke color
+    // Stroke color + linecap/linejoin
     const strokes = node.strokePaints ?? node.strokes;
     const strokeWeight = node.strokeWeight ?? 0;
     let strokeAttr = "";
@@ -616,11 +634,22 @@ function convertShapeNode(node) {
       if (solidStroke) {
         const strokeColor = figmaColorToCss(solidStroke.color, solidStroke.opacity);
         strokeAttr = ` stroke="${strokeColor}" stroke-width="${strokeWeight}"`;
+        // Stroke line cap and join
+        const cap = node.strokeCap;
+        if (cap === "ROUND") strokeAttr += ` stroke-linecap="round"`;
+        else if (cap === "SQUARE") strokeAttr += ` stroke-linecap="square"`;
+        const join = node.strokeJoin;
+        if (join === "ROUND") strokeAttr += ` stroke-linejoin="round"`;
+        else if (join === "BEVEL") strokeAttr += ` stroke-linejoin="bevel"`;
       }
     }
 
+    // Use fill-rule from vectorNetwork regions if available
+    const windingRule = node.vectorNetwork?.regions?.[0]?.windingRule;
+    const fillRuleAttr = windingRule === "EVENODD" ? ` fill-rule="evenodd"` : "";
+
     const wrapStyle = stylesToString(styles);
-    return `<div style="${wrapStyle}"><svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="${svgPath}" fill="${fillColor}"${strokeAttr}/></svg></div>`;
+    return `<div style="${wrapStyle}"><svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" fill="none" overflow="visible" xmlns="http://www.w3.org/2000/svg"><path d="${svgPath}" fill="${fillColor}"${fillRuleAttr}${strokeAttr}/></svg></div>`;
   }
 
   // Fallback: render as a colored div (no vector path data available)
