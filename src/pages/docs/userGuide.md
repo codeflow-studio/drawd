@@ -472,6 +472,39 @@ Click "Download ZIP" in the Instructions panel to download all generated files p
 > [!TIP]
 > Requirement IDs (SCR-XXXXXXXX, HSP-XXXXXXXX-XXXX, NAV-XXXX) are stable across regenerations as long as screen and hotspot names stay the same. You can reference them in follow-up prompts to your AI assistant.
 
+## Exporting an Interactive Prototype
+
+Export your flow as a clickable HTML prototype that stakeholders can tap through in any browser — no code, no server, no dependencies.
+
+### How to export
+
+- Open the **File** menu in the top bar and click **Export Prototype**
+- A single `.html` file downloads with all screen images and navigation logic embedded
+
+### What the prototype includes
+
+- Each screen is displayed as a full-viewport image inside a phone-frame container (430px max-width on desktop, full-width on mobile)
+- Hotspots are invisible tap areas positioned over the screen image — tap one to navigate to the connected screen
+- A floating **Back** button appears after navigating and returns to the previous screen
+- A **sidebar screen list** (toggle via the hamburger icon) lets you jump to any screen directly
+- Conditional hotspots show a **choice popup** with labeled options so reviewers can explore different paths
+
+### Navigation behavior
+
+- `navigate` and `modal` hotspots go to the connected screen
+- `back` hotspots return to the previous screen in the navigation history
+- `api` hotspots follow the success path (there is no real backend in the prototype)
+- `conditional` hotspots present a menu of labeled branches
+- Hotspots without a target are rendered but do nothing when tapped
+- Keyboard navigation: `Backspace` or `Alt+Left` to go back, `Escape` to close menus
+
+### Scope filtering
+
+If a scope root is active (you are viewing a sub-flow), only the screens in that scope are included in the prototype.
+
+> [!TIP]
+> The exported file is entirely self-contained — share it via email, Slack, or any file host. Recipients just open it in a browser to tap through the flow.
+
 ## Keyboard Shortcuts
 
 Press `?` anywhere on the canvas to open the full keyboard shortcuts panel. The shortcuts below are organized by category.

@@ -310,8 +310,8 @@ export default function Drawd({ initialRoomCode }) {
     });
 
   // ── Import / export ────────────────────────────────────────────────────────────────
-  const { importConfirm, setImportConfirm, importFileRef, onExport, onImport, onImportFileChange, onImportReplace, onImportMerge } =
-    useImportExport({ screens, connections, documents, dataModels, stickyNotes, screenGroups, comments, pan, zoom, featureBrief, taskLink, techStack, replaceAll, mergeAll, setPan, setZoom, setStickyNotes, setScreenGroups, setComments });
+  const { importConfirm, setImportConfirm, importFileRef, onExport, onExportPrototype, onImport, onImportFileChange, onImportReplace, onImportMerge } =
+    useImportExport({ screens, connections, documents, dataModels, stickyNotes, screenGroups, comments, pan, zoom, featureBrief, taskLink, techStack, replaceAll, mergeAll, setPan, setZoom, setStickyNotes, setScreenGroups, setComments, scopeScreenIds, connectedFileName });
 
   // ── Toast notification ─────────────────────────────────────────────────────────────
   const [toast, setToast] = useState(null);
@@ -460,6 +460,7 @@ export default function Drawd({ initialRoomCode }) {
         documentCount={documents.length}
         dataModelCount={dataModels.length}
         onExport={onExport}
+        onExportPrototype={onExportPrototype}
         onImport={onImport}
         onGenerate={onGenerate}
         onDocuments={() => setShowDocuments(true)}

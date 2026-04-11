@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { exportFlow } from "../utils/exportFlow";
 import { importFlow } from "../utils/importFlow";
 import { mergeFlow } from "../utils/mergeFlow";
+import { generatePrototype, downloadPrototype } from "../utils/generatePrototype";
 
 export function useImportExport({
   screens,
@@ -23,6 +24,8 @@ export function useImportExport({
   setStickyNotes,
   setScreenGroups,
   setComments,
+  scopeScreenIds,
+  connectedFileName,
 }) {
   const [importConfirm, setImportConfirm] = useState(null);
   const importFileRef = useRef(null);
@@ -78,10 +81,20 @@ export function useImportExport({
     setImportConfirm(null);
   }, [importConfirm, screens, mergeAll]);
 
+  const onExportPrototype = useCallback(() => {
+    if (screens.length === 0) return;
+    const html = generatePrototype(screens, connections, {
+      title: connectedFileName || "Prototype",
+      scopeScreenIds,
+    });
+    downloadPrototype(html);
+  }, [screens, connections, scopeScreenIds, connectedFileName]);
+
   return {
     importConfirm, setImportConfirm,
     importFileRef,
     onExport,
+    onExportPrototype,
     onImport,
     onImportFileChange,
     onImportReplace,
