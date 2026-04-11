@@ -78,6 +78,13 @@ iofigma.kiwi.factory.node = function (nc, message) {
         node[prop] = nc[prop];
       }
     }
+    // Preserve kiwi parentIndex.position for correct child re-sorting.
+    // The refig library sorts with localeCompare which produces wrong order
+    // for Figma's mixed-case ASCII fractional indices; resortFigFileChildren
+    // uses this value to re-sort with byte-level comparison.
+    if (nc.parentIndex?.position != null) {
+      node._kiwiParentPosition = nc.parentIndex.position;
+    }
   }
 
   return node;
@@ -91,6 +98,43 @@ function endCapture() {
   const result = captureState;
   captureState = null;
   return result;
+}
+
+// Figma's fractional indices (parentIndex.position) use mixed-case ASCII
+// characters designed for byte-level comparison. The refig library sorts
+// children with localeCompare, which is locale-aware and case-insensitive,
+// producing wrong order (e.g. "i" < "P" alphabetically, but "P" < "i" in
+// ASCII). This comparator uses plain string comparison to match Figma's
+// intended ordering.
+function comparePosition(a, b) {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+// Re-sort all children in the _figFile tree using byte-level comparison
+// to fix the ordering produced by refig's localeCompare-based sort.
+function resortFigFileChildren(figFile) {
+  if (!figFile?.pages) return;
+  for (const page of figFile.pages) {
+    if (page.rootNodes) {
+      for (const node of page.rootNodes) {
+        resortNodeChildren(node);
+      }
+    }
+  }
+}
+
+function resortNodeChildren(node) {
+  if (!node?.children?.length) return;
+  node.children.sort((a, b) => {
+    const aPos = a._kiwiParentPosition ?? "";
+    const bPos = b._kiwiParentPosition ?? "";
+    return comparePosition(aPos, bPos);
+  });
+  for (const child of node.children) {
+    resortNodeChildren(child);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -152,13 +196,14 @@ function buildDerivedTree(derivedNCs, message, parentGuid) {
     }
   });
 
-  // Sort children by fractional position index
+  // Sort children by fractional position index (byte-level comparison, not
+  // localeCompare — Figma's fractional indices use mixed-case ASCII).
   guidToNode.forEach((parent) => {
     if (!parent.children?.length) return;
     parent.children.sort((a, b) => {
       const aPos = guidToKiwi.get(a.id)?.parentIndex?.position ?? "";
       const bPos = guidToKiwi.get(b.id)?.parentIndex?.position ?? "";
-      return aPos.localeCompare(bPos);
+      return comparePosition(aPos, bPos);
     });
   });
 
@@ -169,13 +214,11 @@ function buildDerivedTree(derivedNCs, message, parentGuid) {
     return iofigma.kiwi.guid(kiwi.parentIndex.guid) === parentGuid;
   });
 
-  // Sort root children by fractional position index (same as intermediate children above).
-  // Without this, root-level children of shared library instances retain arbitrary
-  // kiwi binary order, causing incorrect z-index assignment in figmaToHtml.
+  // Sort root children by fractional position index.
   rootChildren.sort((a, b) => {
     const aPos = guidToKiwi.get(a.id)?.parentIndex?.position ?? "";
     const bPos = guidToKiwi.get(b.id)?.parentIndex?.position ?? "";
-    return aPos.localeCompare(bPos);
+    return comparePosition(aPos, bPos);
   });
 
   return { rootChildren, guidToNode, guidToKiwi };
@@ -867,6 +910,11 @@ export function parseFigmaFrames(buffer) {
       console.warn("[Figma] Shared component resolution failed:", err);
     }
   }
+
+  // Re-sort all children using byte-level comparison to fix refig's
+  // localeCompare-based sort which produces wrong order for Figma's
+  // mixed-case ASCII fractional indices.
+  resortFigFileChildren(doc._figFile);
 
   const figFile = doc._figFile;
   const frames = [];
