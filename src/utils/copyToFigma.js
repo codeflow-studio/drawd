@@ -200,13 +200,6 @@ function parseHtmlViewport(html) {
   };
 }
 
-/**
- * Resolves the viewport size for a Figma-pasted screen. Prefers the
- * dimensions captured at paste time (sourceWidth/sourceHeight) and falls
- * back to regex-parsing the HTML for older screens that predate those
- * fields. If neither source yields a usable value, the standard iPhone 15
- * Pro dimensions (393x852) are returned.
- */
 function resolveViewport(screen) {
   const storedWidth = Number.isFinite(screen.sourceWidth) ? screen.sourceWidth : null;
   const storedHeight = Number.isFinite(screen.sourceHeight) ? screen.sourceHeight : null;
