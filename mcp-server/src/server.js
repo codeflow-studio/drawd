@@ -13,6 +13,7 @@ import { modelTools, handleModelTool } from "./tools/model-tools.js";
 import { annotationTools, handleAnnotationTool } from "./tools/annotation-tools.js";
 import { commentTools, handleCommentTool } from "./tools/comment-tools.js";
 import { generationTools, handleGenerationTool } from "./tools/generation-tools.js";
+import { selectionTools, handleSelectionTool } from "./tools/selection-tools.js";
 
 const FILE_TOOL_NAMES = new Set(fileTools.map((t) => t.name));
 const SCREEN_TOOL_NAMES = new Set(screenTools.map((t) => t.name));
@@ -23,6 +24,7 @@ const MODEL_TOOL_NAMES = new Set(modelTools.map((t) => t.name));
 const ANNOTATION_TOOL_NAMES = new Set(annotationTools.map((t) => t.name));
 const COMMENT_TOOL_NAMES = new Set(commentTools.map((t) => t.name));
 const GENERATION_TOOL_NAMES = new Set(generationTools.map((t) => t.name));
+const SELECTION_TOOL_NAMES = new Set(selectionTools.map((t) => t.name));
 
 // filePath is injected into every non-file tool so callers can establish
 // session context inline (auto-loaded once, then reused for the whole session).
@@ -55,9 +57,10 @@ const ALL_TOOLS = [
   ...withFilePath(annotationTools),
   ...withFilePath(commentTools),
   ...withFilePath(generationTools),
+  ...withFilePath(selectionTools),
 ];
 
-export function createServer(state, renderer) {
+export function createServer(state, renderer, bridge) {
   const server = new Server(
     { name: "drawd-mcp", version: "1.0.0" },
     { capabilities: { tools: {} } },
@@ -97,6 +100,8 @@ export function createServer(state, renderer) {
         result = handleCommentTool(name, args, state);
       } else if (GENERATION_TOOL_NAMES.has(name)) {
         result = handleGenerationTool(name, args, state);
+      } else if (SELECTION_TOOL_NAMES.has(name)) {
+        result = handleSelectionTool(name, args, state, bridge);
       } else {
         return {
           content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${name}` }) }],

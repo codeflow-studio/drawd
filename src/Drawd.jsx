@@ -22,6 +22,7 @@ import { useCommentManager } from "./hooks/useCommentManager";
 import { useInteractionCallbacks } from "./hooks/useInteractionCallbacks";
 import { useDerivedCanvasState } from "./hooks/useDerivedCanvasState";
 import { useTemplateInserter } from "./hooks/useTemplateInserter";
+import { useSelectionReporter } from "./hooks/useSelectionReporter";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { StickyNoteSidebar } from "./components/StickyNoteSidebar";
@@ -290,6 +291,20 @@ export default function Drawd({ initialRoomCode }) {
 
   // Keep collab sync refs up to date
   hotspotInteractionRef.current = hotspotInteraction;
+
+  // ── MCP selection bridge reporter ────────────────────────────────────────
+  useSelectionReporter({
+    canvasSelection,
+    selectedScreen,
+    selectedStickyNote,
+    selectedScreenGroup,
+    selectedConnection,
+    selectedHotspots,
+    hotspotInteraction,
+    selectedCommentId,
+    screens,
+    filePath: connectedFileName,
+  });
 
   // ── Cross-concern callbacks ──────────────────────────────────────────────────────────
   const {

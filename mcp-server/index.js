@@ -2,6 +2,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { FlowState } from "./src/state.js";
 import { SatoriRenderer } from "./src/renderer/satori-renderer.js";
 import { createServer } from "./src/server.js";
+import { createSelectionBridge } from "./src/selection-bridge.js";
 
 async function main() {
   const state = new FlowState();
@@ -28,16 +29,20 @@ async function main() {
     process.stderr.write("Screen creation from HTML will not work.\n");
   }
 
-  const server = createServer(state, renderer);
+  const bridge = createSelectionBridge();
+
+  const server = createServer(state, renderer, bridge);
   const transport = new StdioServerTransport();
 
   // Graceful shutdown
   process.on("SIGINT", async () => {
+    bridge.close();
     await server.close();
     process.exit(0);
   });
 
   process.on("SIGTERM", async () => {
+    bridge.close();
     await server.close();
     process.exit(0);
   });

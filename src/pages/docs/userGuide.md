@@ -733,6 +733,7 @@ The MCP server exposes 27 tools organized by category:
 - **Annotation** — `create_sticky_note`, `create_screen_group`, `update_screen_group`, `delete_screen_group`
 - **Comments** — `list_comments`, `create_comment`, `update_comment`, `resolve_comment`, `delete_comment`
 - **Generation** — `validate_flow`, `generate_instructions`, `analyze_navigation`
+- **Selection** — `get_current_selection`
 
 ### Creating screens from HTML
 
@@ -767,6 +768,17 @@ A typical agent interaction looks like this:
 6. `generate_instructions` — produce AI build instruction files
 
 You can then open the saved `.drawd` file in Drawd to visually inspect the flow, adjust screen positions, refine hotspots, and regenerate instructions.
+
+### Reading the user's current selection
+
+The `get_current_selection` tool lets an AI agent know which element(s) you currently have selected in the Drawd browser app — so you can say "update this screen" or "add a hotspot here" without pasting IDs.
+
+When the MCP server starts, it opens a tiny HTTP listener on `localhost:3337`. The Drawd app posts your selection to that listener any time it changes (screens, sticky notes, connections, hotspots, screen groups, comments). The tool reads the latest snapshot and returns enriched objects (names, descriptions, hotspot counts, etc.) that the agent can act on directly.
+
+> [!NOTE]
+> The bridge runs automatically — there is no manual setup. If port 3337 is in use, set `DRAWD_SELECTION_PORT` before starting the MCP server.
+
+If the user hasn't interacted with the app in the last 60 seconds, the tool returns `{ selection: null, reason: "no_recent_selection" }` so the agent knows to ask instead of acting on stale state.
 
 ### Pre-loading a flow
 
