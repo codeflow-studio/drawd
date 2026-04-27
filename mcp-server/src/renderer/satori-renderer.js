@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolveViewport, DEVICE_PRESETS } from "./device-presets.js";
 import { getEmojiCode, loadEmojiSvg } from "./emoji-loader.js";
 import { composeChromeSvg, expandAutoChrome } from "./chrome/index.js";
+import { Cache } from "../asset-fetchers/cache.js";
+import { fetchBinary } from "../asset-fetchers/http.js";
 
 // Dynamic imports resolved at runtime to support esbuild bundling
 let _satori = null;
@@ -35,6 +37,150 @@ function resolveAssetsDir() {
 }
 
 const ASSETS_DIR = resolveAssetsDir();
+
+// ── Remote image inlining ─────────────────────────────────────────────────────
+//
+// Satori cannot fetch image URLs itself — the renderer pre-pass downloads
+// each <img src="https://..."> referenced in the HTML and rewrites the src
+// to a base64 data URI. Failures fall back to a transparent 1×1 PNG so a
+// single bad URL never breaks the whole render.
+//
+// SECURITY: only hosts on this allowlist are fetched. Any other src= URL
+// is replaced with the transparent placeholder. This prevents prompt-injected
+// HTML (e.g. an attacker-supplied `<img src="https://attacker.example/...">`)
+// from causing the MCP to make arbitrary outbound requests.
+
+const ALLOWED_IMAGE_HOSTS = new Set([
+  "api.iconify.design",
+  "images.unsplash.com",
+  "api.unsplash.com",
+  "api.pexels.com",
+  "images.pexels.com",
+  "picsum.photos",
+  "fastly.picsum.photos",
+]);
+
+const TRANSPARENT_PNG_DATA_URI =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+
+const _imageBytesCache = new Cache({
+  subdir: "images",
+  encoding: "binary",
+  ttlMs: 30 * 24 * 60 * 60 * 1000, // 30 days
+});
+
+const IMG_TAG_RE = /<img\b[^>]*?\bsrc\s*=\s*["'](https?:\/\/[^"']+)["'][^>]*>/gi;
+
+function isAllowedImageHost(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+    return ALLOWED_IMAGE_HOSTS.has(u.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Replace every literal `src="<url>"` and `src='<url>'` for `url` with a
+ * `src="<replacement>"` data URI. We rebuild the regex per-URL rather than
+ * doing one pass over the whole document so we can keep the URL-to-data-URI
+ * mapping cleanly per-unique URL.
+ */
+function swapSrc(html, url, replacement) {
+  const re = new RegExp(
+    `src\\s*=\\s*["']${escapeRegex(url)}["']`,
+    "g",
+  );
+  return html.replace(re, `src="${replacement}"`);
+}
+
+/**
+ * Pre-process HTML by downloading and inlining any remote `<img src>` URLs
+ * that point at our allowlisted hosts. Anything outside the allowlist or
+ * any failed fetch is replaced with a transparent 1×1 PNG.
+ *
+ * Concurrency is capped at 4 in-flight downloads.
+ *
+ * @param {string} html
+ * @param {Cache} [imageCache]   Override the module-level cache (mostly for tests).
+ * @returns {Promise<string>}
+ */
+export async function inlineRemoteImages(html, imageCache = _imageBytesCache) {
+  if (typeof html !== "string" || !html.includes("<img")) return html;
+
+  const matches = [...html.matchAll(IMG_TAG_RE)];
+  if (matches.length === 0) return html;
+
+  const uniqueUrls = [...new Set(matches.map((m) => m[1]))];
+
+  // Resolve each unique URL to a data URI. Cap concurrency at 4.
+  const results = new Map();
+  const queue = [...uniqueUrls];
+  const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const url = queue.shift();
+      results.set(url, await resolveImageToDataUri(url, imageCache));
+    }
+  });
+  await Promise.all(workers);
+
+  let out = html;
+  for (const [url, dataUri] of results) {
+    out = swapSrc(out, url, dataUri);
+  }
+  return out;
+}
+
+async function resolveImageToDataUri(url, imageCache) {
+  if (!isAllowedImageHost(url)) {
+    process.stderr.write(
+      `[drawd-mcp] Rejecting <img src> outside allowlist: ${safeHostFor(url)}\n`,
+    );
+    return TRANSPARENT_PNG_DATA_URI;
+  }
+  try {
+    const cached = await imageCache.getOrFetch(url, async () => {
+      const { bytes, contentType } = await fetchBinary(url);
+      // Pack bytes + content-type into a single Buffer for binary cache.
+      // Format: [4-byte BE length of contentType][contentType][bytes]
+      const ctBuf = Buffer.from(contentType, "utf8");
+      const lenBuf = Buffer.alloc(4);
+      lenBuf.writeUInt32BE(ctBuf.length, 0);
+      return Buffer.concat([lenBuf, ctBuf, bytes]);
+    });
+    if (!Buffer.isBuffer(cached) || cached.length < 4) return TRANSPARENT_PNG_DATA_URI;
+    const ctLen = cached.readUInt32BE(0);
+    const contentType = cached.slice(4, 4 + ctLen).toString("utf8");
+    const bytes = cached.slice(4 + ctLen);
+    return `data:${contentType};base64,${bytes.toString("base64")}`;
+  } catch (err) {
+    process.stderr.write(
+      `[drawd-mcp] Failed to inline ${safeHostFor(url)}: ${err.message}\n`,
+    );
+    return TRANSPARENT_PNG_DATA_URI;
+  }
+}
+
+function safeHostFor(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "(unparseable url)";
+  }
+}
+
+export const _imageInlineInternals = {
+  ALLOWED_IMAGE_HOSTS,
+  TRANSPARENT_PNG_DATA_URI,
+  imageBytesCache: _imageBytesCache,
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 export class SatoriRenderer {
   constructor() {
@@ -86,11 +232,17 @@ export class SatoriRenderer {
     // chrome only applies when we know which device we're targeting).
     const resolvedDevice = (width && height) ? null : (device || "iphone");
 
+    // Inline any remote <img src="https://..."> URLs into base64 data URIs
+    // before any other preprocessing. Satori cannot fetch URLs itself, so
+    // unresolved <img> elements would otherwise render as broken/missing.
+    // Hostname allowlist is enforced inside inlineRemoteImages (SSRF guard).
+    const inlinedHtml = await inlineRemoteImages(htmlString);
+
     // satori-html does not decode HTML entities. Agents frequently write
     // numeric entities (&#9679;, &#x25cf;) and safe named entities (&bull;,
     // &hellip;) — decode them before parsing so they render as glyphs, not
     // literal text.
-    const decodedHtml = decodeSafeEntities(htmlString);
+    const decodedHtml = decodeSafeEntities(inlinedHtml);
 
     // Wrap bare content in a full-page container if needed
     const wrappedHtml = ensureRootContainer(decodedHtml, viewport.width, viewport.height);
