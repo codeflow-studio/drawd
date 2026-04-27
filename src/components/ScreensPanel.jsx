@@ -466,6 +466,31 @@ export function ScreensPanel({
           }}
         >
           <button
+            onClick={() => {
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(contextMenu.screenId);
+              }
+              closeContextMenu();
+            }}
+            style={{
+              display: "block",
+              width: "100%",
+              padding: "9px 14px",
+              background: "none",
+              border: "none",
+              color: COLORS.text,
+              cursor: "pointer",
+              textAlign: "left",
+              fontFamily: FONTS.ui,
+              fontSize: 12,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.surfaceHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+          >
+            ⧉ Copy Screen ID
+          </button>
+          <div style={{ borderTop: `1px solid ${COLORS.border}` }} />
+          <button
             onClick={() => { onSetScopeRoot?.(contextMenu.screenId === scopeRoot ? null : contextMenu.screenId); closeContextMenu(); }}
             style={{
               display: "block",

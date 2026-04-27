@@ -873,6 +873,16 @@ When the MCP server starts, it opens a tiny HTTP listener on `localhost:3337`. T
 
 If the user hasn't interacted with the app in the last 60 seconds, the tool returns `{ selection: null, reason: "no_recent_selection" }` so the agent knows to ask instead of acting on stale state.
 
+### Copying screen IDs for agent prompts
+
+When you ask an AI agent to "edit screen `s_xyz`" or "add a hotspot to `s_xyz`", you'll need that screen's ID. Drawd surfaces it in two places:
+
+- **Sidebar** — Open a screen's inspector. The monospace ID chip under the screen name is clickable; one click copies it to your clipboard. The chip flips to `Copied!` to confirm.
+- **Screens panel** — Right-click any screen row and choose `⧉ Copy Screen ID`. You don't need to select the screen first.
+
+> [!TIP]
+> Connection, hotspot, document, and data-model IDs are not yet copyable from the UI. For those, refer to the `.drawd` JSON or use the MCP server's `list_*` tools.
+
 ### Pre-loading a flow
 
 Start the MCP server with an existing `.drawd` file pre-loaded:
