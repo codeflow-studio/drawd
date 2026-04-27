@@ -23,7 +23,7 @@ const accessibilitySchema = {
 export const hotspotTools = [
   {
     name: "create_hotspot",
-    description: "Add a hotspot (tap area) to a screen. Coordinates are percentages (0-100) of the screen image dimensions. If action is 'navigate' or 'modal' and targetScreenId is provided, a connection is automatically created.",
+    description: "Add a hotspot (tap area) to a screen. Coordinates are percentages (0-100) of the screen image dimensions. If action is 'navigate' or 'modal' and targetScreenId is provided, a connection is automatically created. Hotspots on a canonical component apply to every placement; hotspots on an instance are placement-specific additive interactions that do not modify or hide the canonical's hotspots.",
     inputSchema: {
       type: "object",
       properties: {
@@ -120,7 +120,7 @@ export const hotspotTools = [
   },
   {
     name: "list_hotspots",
-    description: "List all hotspots on a specific screen.",
+    description: "List all hotspots on a specific screen. On a canonical component, this returns the hotspots that apply to every placement. On an instance, this returns only the placement-specific (additive) hotspots — to see the canonical's hotspots, call this against the canonical screen.",
     inputSchema: {
       type: "object",
       properties: {

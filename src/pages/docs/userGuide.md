@@ -300,10 +300,22 @@ You can also right-click the screen and choose **Mark as reusable component** fr
 1. Select a different screen that should be the same component.
 2. In the **Reusable Component** section, use the **Instance of…** dropdown to pick the canonical component you just created.
 3. The screen's spec fields (description, code reference, acceptance criteria, roles) collapse — the spec lives on the canonical screen. The screen gets a `↗ Instance` badge.
-4. The instance's image and hotspots on the canvas mirror the canonical's automatically. Edit the canonical and every instance updates.
+4. The instance's image and dimensions on the canvas mirror the canonical's automatically. Edit the canonical and every instance updates.
 
 > [!TIP]
-> Hotspot positions, dimensions, and the `+ Link` button are read-only on instances — the canonical owns the visual spec. To edit a hotspot or replace the image, jump to the canonical via the **Open canonical →** link in the sidebar.
+> The image is owned by the canonical — to replace it, jump to the canonical via the **Open canonical →** link in the sidebar. Hotspots and connections are different: see *Instance-specific hotspots* below.
+
+### Instance-specific hotspots
+
+Hotspots and connections on a canonical component apply to every placement where it appears. Sometimes a single placement also needs an extra tap area or navigation link that doesn't belong on the component itself.
+
+You can draw hotspots and create connections directly on an instance. These are **additive** — they do not modify or hide the canonical's hotspots. At export time, instance-local hotspots appear in the component file under "Placement: <screen name>" alongside the canonical spec.
+
+> [!NOTE]
+> Hotspots drawn on the canvas of an instance live only on that placement. If you need a hotspot to apply to every instance, edit the canonical instead.
+
+> [!TIP]
+> If you delete a canonical that has instances, the first instance becomes the new canonical. Its existing local hotspots are merged with the deleted canonical's, so nothing is lost. Connections that referenced the canonical's hotspots are re-pointed to the promoted instance automatically.
 
 ### Unlinking and conversions
 
