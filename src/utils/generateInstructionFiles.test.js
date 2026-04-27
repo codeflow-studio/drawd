@@ -401,4 +401,96 @@ describe("generateInstructionFiles - reusable components", () => {
     expect(componentFile.content).toContain("instance");
     expect(componentFile.content).toContain("Home");
   });
+
+  it("emits a 'Placement: <name>' subsection in components/<slug>.md for an instance with a local hotspot", () => {
+    const localHotspot = {
+      id: "hI1",
+      label: "Skip",
+      elementType: "button",
+      interactionType: "tap",
+      action: "navigate",
+      x: 10, y: 10, w: 30, h: 10,
+    };
+    const screens = [
+      { ...minimalScreen, id: "s1", name: "Card", componentId: "c1", componentRole: "canonical" },
+      {
+        ...minimalScreen,
+        id: "s2",
+        name: "Card on Onboarding",
+        x: 400,
+        componentId: "c1",
+        componentRole: "instance",
+        hotspots: [localHotspot],
+      },
+    ];
+    const result = generateInstructionFiles(screens, [], opts);
+    const componentFile = result.files.find((f) => f.name === "components/card.md");
+    expect(componentFile.content).toContain("### Placement: Card on Onboarding");
+    expect(componentFile.content).toContain(
+      "*Placement-specific interactions (in addition to the canonical spec below).*"
+    );
+    expect(componentFile.content).toContain("#### Skip");
+  });
+
+  it("does not emit a 'Placement:' subsection for the canonical itself (its spec is the Spec block)", () => {
+    const screens = [
+      {
+        ...minimalScreen,
+        id: "s1",
+        name: "Card",
+        hotspots: [{
+          id: "hC1",
+          label: "Tap",
+          elementType: "button",
+          interactionType: "tap",
+          action: "navigate",
+          x: 10, y: 10, w: 80, h: 15,
+        }],
+        componentId: "c1",
+        componentRole: "canonical",
+      },
+      { ...minimalScreen, id: "s2", name: "Home", x: 400, componentId: "c1", componentRole: "instance" },
+    ];
+    const result = generateInstructionFiles(screens, [], opts);
+    const componentFile = result.files.find((f) => f.name === "components/card.md");
+    expect(componentFile.content).not.toContain("### Placement: Card\n");
+  });
+
+  it("does not emit a Placement subsection for an instance with no local content (regression)", () => {
+    const screens = [
+      { ...minimalScreen, id: "s1", name: "Card", componentId: "c1", componentRole: "canonical" },
+      { ...minimalScreen, id: "s2", name: "Home", x: 400, componentId: "c1", componentRole: "instance", hotspots: [] },
+    ];
+    const result = generateInstructionFiles(screens, [], opts);
+    const componentFile = result.files.find((f) => f.name === "components/card.md");
+    expect(componentFile.content).not.toContain("### Placement:");
+  });
+
+  it("screens.md instance entry remains a one-line stub (regression)", () => {
+    const screens = [
+      { ...minimalScreen, id: "s1", name: "Card", componentId: "c1", componentRole: "canonical" },
+      {
+        ...minimalScreen,
+        id: "s2",
+        name: "Card on Home",
+        x: 400,
+        componentId: "c1",
+        componentRole: "instance",
+        hotspots: [{
+          id: "hI1",
+          label: "Skip",
+          elementType: "button",
+          interactionType: "tap",
+          action: "navigate",
+          x: 10, y: 10, w: 30, h: 10,
+        }],
+      },
+    ];
+    const result = generateInstructionFiles(screens, [], opts);
+    const screensFile = result.files.find((f) => f.name === "screens.md");
+    expect(screensFile.content).toContain("Instance of [Card](components/card.md)");
+    // The instance stub must not duplicate the placement-specific hotspot detail
+    // — that lives in components/card.md only.
+    expect(screensFile.content).not.toContain("### Placement: Card on Home");
+  });
 });

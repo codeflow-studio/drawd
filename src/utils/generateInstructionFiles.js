@@ -710,6 +710,46 @@ function generateComponentFiles(screens, connections, images, documents, compone
     }
     md += `\n`;
 
+    // Per-placement subsection: emit only for non-canonical placements that
+    // carry placement-specific content (local hotspots and/or screen-level
+    // outgoing connections). Hotspots on an instance are additive locals;
+    // canonical hotspots are NOT inherited at storage time and are already
+    // covered by the Spec block below.
+    for (const placement of instances) {
+      const localHotspots = placement.hotspots || [];
+      const localHotspotIds = new Set(localHotspots.map((h) => h.id));
+      const hotspotConns = connections.filter(
+        (c) =>
+          c.fromScreenId === placement.id &&
+          c.hotspotId &&
+          localHotspotIds.has(c.hotspotId)
+      );
+      const screenLevelConns = connections.filter(
+        (c) => c.fromScreenId === placement.id && !c.hotspotId
+      );
+      if (
+        localHotspots.length === 0 &&
+        hotspotConns.length === 0 &&
+        screenLevelConns.length === 0
+      ) {
+        continue;
+      }
+      md += `### Placement: ${placement.name}\n\n`;
+      md += `*Placement-specific interactions (in addition to the canonical spec below).*\n\n`;
+      for (const h of localHotspots) {
+        md += `#### ${h.label || "Hotspot"}\n\n`;
+        const detail = renderHotspotDetailBlock(h, screens, documents);
+        if (detail) md += detail;
+      }
+      for (const c of screenLevelConns) {
+        const target = screens.find((s) => s.id === c.toScreenId);
+        const targetName = target?.name ?? "(unknown)";
+        const action = c.action || "navigate";
+        md += `- → ${targetName} (${action})\n`;
+      }
+      md += `\n`;
+    }
+
     md += `## Spec\n\n`;
     md += generateScreenDetailMd(canonical, screens, connections, images, documents);
 
