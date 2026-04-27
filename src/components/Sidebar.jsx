@@ -1,6 +1,6 @@
 import { COLORS, FONTS, STATUS_CONFIG, STATUS_CYCLE, COMPONENT_CONFIG } from "../styles/theme";
-import { useState } from "react";
-import { SIDEBAR_WIDTH } from "../constants";
+import { useEffect, useState } from "react";
+import { COPY_FEEDBACK_MS, SIDEBAR_WIDTH } from "../constants";
 
 export function Sidebar({ screen, screens, connections, onClose, onRename, onAddHotspot, onEditHotspot, onAddState, onSelectScreen, onUpdateStateName, onUpdateNotes, onUpdateCodeRef, onUpdateCriteria, onUpdateStatus, onUpdateTbd, onUpdateRoles, onSetComponent, isReadOnly }) {
   const [draftNotes, setDraftNotes] = useState(screen.notes || "");
@@ -12,6 +12,13 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
   const [tbdScreenId, setTbdScreenId] = useState(screen.id);
   const [newRole, setNewRole] = useState("");
   const [rolesScreenId, setRolesScreenId] = useState(screen.id);
+  const [idCopied, setIdCopied] = useState(false);
+
+  // Reset the "Copied!" flag when switching to a different screen so it
+  // never lingers from a previous screen's click.
+  useEffect(() => {
+    setIdCopied(false);
+  }, [screen.id]);
 
   // Reset drafts when screen changes
   if (screen.id !== notesScreenId) {
@@ -45,6 +52,14 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
   const instanceCount = isCanonical
     ? screens.filter((s) => s.componentId === screen.componentId && s.id !== screen.id).length
     : 0;
+
+  const handleCopyId = () => {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(screen.id).then(() => {
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), COPY_FEEDBACK_MS);
+    });
+  };
 
   return (
     <div
@@ -115,6 +130,33 @@ export function Sidebar({ screen, screens, connections, onClose, onRename, onAdd
           </button>
         )}
       </div>
+
+      {/* Screen ID chip — click to copy. Always visible (read-only-safe). */}
+      <button
+        onClick={handleCopyId}
+        title={idCopied ? "Copied!" : "Click to copy screen ID"}
+        style={{
+          display: "block",
+          width: "100%",
+          padding: "6px 12px",
+          marginBottom: 12,
+          background: COLORS.bg,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 6,
+          color: idCopied ? COLORS.accentLight : COLORS.textMuted,
+          fontFamily: FONTS.mono,
+          fontSize: 11,
+          textAlign: "left",
+          cursor: "pointer",
+          letterSpacing: "0.02em",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          boxSizing: "border-box",
+        }}
+      >
+        {idCopied ? "Copied!" : screen.id}
+      </button>
 
       {/* TBD toggle */}
       <div style={{ marginBottom: 12 }}>
