@@ -10,6 +10,18 @@ import {
 } from "../../src/constants.js";
 import { gridPosition } from "./utils/grid-layout.js";
 
+// Normalize the viewport block to the canonical `{ pan: {x,y}, zoom }` shape
+// regardless of whether the file used the canonical shape, the legacy
+// `{ x, y, scale }` shape, or omitted any subset of those keys.
+function normalizeViewport(v) {
+  if (!v || typeof v !== "object") return { pan: { x: 0, y: 0 }, zoom: 1 };
+  const pan = v.pan && typeof v.pan === "object" ? v.pan : v;
+  return {
+    pan: { x: Number(pan.x) || 0, y: Number(pan.y) || 0 },
+    zoom: Number(v.zoom ?? v.scale) || 1,
+  };
+}
+
 export class FlowState {
   constructor() {
     this.screens = [];
@@ -44,7 +56,7 @@ export class FlowState {
     this.screenGroups = data.screenGroups || [];
     this.comments = data.comments || [];
     this.metadata = data.metadata || {};
-    this.viewport = data.viewport || { pan: { x: 0, y: 0 }, zoom: 1 };
+    this.viewport = normalizeViewport(data.viewport);
     this.filePath = filePath;
     this._screenCounter = this.screens.length + 1;
   }
