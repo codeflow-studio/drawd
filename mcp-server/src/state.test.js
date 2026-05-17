@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { FlowState } from "./state.js";
 
 // Prevent filesystem writes in all tests by mocking _autoSave on each instance.
@@ -246,5 +249,66 @@ describe("FlowState.createNew", () => {
     // Pass null filePath to skip the file write
     state.createNew(null);
     expect(state.comments).toEqual([]);
+  });
+});
+
+// ── load: viewport shape normalization ────────────────────────────────────────
+// Regression: hand-written or legacy .drawd files may carry viewport as
+// `{x,y,scale}` (or omit pan/zoom entirely). load() must normalize to
+// `{pan:{x,y}, zoom}` so the subsequent auto-save through buildPayload (which
+// reads `viewport.pan.x`) doesn't crash with "Cannot read properties of
+// undefined (reading 'x')".
+
+describe("FlowState.load viewport normalization", () => {
+  const writeTmpFlow = (viewport) => {
+    const file = path.join(os.tmpdir(), `flowstate-load-${Date.now()}-${Math.random().toString(36).slice(2)}.drawd`);
+    const payload = {
+      version: 10,
+      metadata: { name: "t", featureBrief: "", taskLink: "", techStack: {} },
+      screens: [],
+      connections: [],
+      documents: [],
+      dataModels: [],
+      stickyNotes: [],
+      screenGroups: [],
+      comments: [],
+    };
+    if (viewport !== undefined) payload.viewport = viewport;
+    fs.writeFileSync(file, JSON.stringify(payload));
+    return file;
+  };
+
+  const load = (viewport) => {
+    const file = writeTmpFlow(viewport);
+    const state = new FlowState();
+    state.load(file);
+    fs.unlinkSync(file);
+    return state.viewport;
+  };
+
+  it("passes through the canonical {pan,zoom} shape", () => {
+    expect(load({ pan: { x: 12, y: 34 }, zoom: 0.75 })).toEqual({ pan: { x: 12, y: 34 }, zoom: 0.75 });
+  });
+
+  it("normalizes legacy {x,y,scale} shape into {pan,zoom}", () => {
+    expect(load({ x: 100, y: 200, scale: 1.5 })).toEqual({ pan: { x: 100, y: 200 }, zoom: 1.5 });
+  });
+
+  it("defaults missing viewport to origin/1x", () => {
+    expect(load(undefined)).toEqual({ pan: { x: 0, y: 0 }, zoom: 1 });
+  });
+
+  it("defaults missing pan keys to 0 and missing zoom to 1", () => {
+    expect(load({ pan: {} })).toEqual({ pan: { x: 0, y: 0 }, zoom: 1 });
+  });
+
+  it("does not crash on subsequent save after loading a legacy-shape viewport", () => {
+    const file = writeTmpFlow({ x: 5, y: 6, scale: 2 });
+    const state = new FlowState();
+    state.load(file);
+    expect(() => state.save()).not.toThrow();
+    const reloaded = JSON.parse(fs.readFileSync(file, "utf-8"));
+    expect(reloaded.viewport).toEqual({ pan: { x: 5, y: 6 }, zoom: 2 });
+    fs.unlinkSync(file);
   });
 });
