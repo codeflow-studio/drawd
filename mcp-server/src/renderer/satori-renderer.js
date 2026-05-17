@@ -109,15 +109,16 @@ function swapSrc(html, url, replacement) {
  *
  * @param {string} html
  * @param {Cache} [imageCache]   Override the module-level cache (mostly for tests).
- * @returns {Promise<string>}
+ * @returns {Promise<{html: string, warnings: string[]}>}
  */
 export async function inlineRemoteImages(html, imageCache = _imageBytesCache) {
-  if (typeof html !== "string" || !html.includes("<img")) return html;
+  if (typeof html !== "string" || !html.includes("<img")) return { html, warnings: [] };
 
   const matches = [...html.matchAll(IMG_TAG_RE)];
-  if (matches.length === 0) return html;
+  if (matches.length === 0) return { html, warnings: [] };
 
   const uniqueUrls = [...new Set(matches.map((m) => m[1]))];
+  const warnings = [];
 
   // Resolve each unique URL to a data URI. Cap concurrency at 4.
   const results = new Map();
@@ -125,7 +126,9 @@ export async function inlineRemoteImages(html, imageCache = _imageBytesCache) {
   const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
     while (queue.length > 0) {
       const url = queue.shift();
-      results.set(url, await resolveImageToDataUri(url, imageCache));
+      const { dataUri, warning } = await resolveImageToDataUri(url, imageCache);
+      results.set(url, dataUri);
+      if (warning) warnings.push(warning);
     }
   });
   await Promise.all(workers);
@@ -134,7 +137,7 @@ export async function inlineRemoteImages(html, imageCache = _imageBytesCache) {
   for (const [url, dataUri] of results) {
     out = swapSrc(out, url, dataUri);
   }
-  return out;
+  return { html: out, warnings };
 }
 
 async function resolveImageToDataUri(url, imageCache) {
@@ -142,7 +145,7 @@ async function resolveImageToDataUri(url, imageCache) {
     process.stderr.write(
       `[drawd-mcp] Rejecting <img src> outside allowlist: ${safeHostFor(url)}\n`,
     );
-    return TRANSPARENT_PNG_DATA_URI;
+    return { dataUri: TRANSPARENT_PNG_DATA_URI, warning: `${url} rejected by remote-image allowlist, replaced with transparent fallback` };
   }
   try {
     const cached = await imageCache.getOrFetch(url, async () => {
@@ -154,16 +157,18 @@ async function resolveImageToDataUri(url, imageCache) {
       lenBuf.writeUInt32BE(ctBuf.length, 0);
       return Buffer.concat([lenBuf, ctBuf, bytes]);
     });
-    if (!Buffer.isBuffer(cached) || cached.length < 4) return TRANSPARENT_PNG_DATA_URI;
+    if (!Buffer.isBuffer(cached) || cached.length < 4) {
+      return { dataUri: TRANSPARENT_PNG_DATA_URI, warning: `${url} returned empty response, replaced with transparent fallback` };
+    }
     const ctLen = cached.readUInt32BE(0);
     const contentType = cached.slice(4, 4 + ctLen).toString("utf8");
     const bytes = cached.slice(4 + ctLen);
-    return `data:${contentType};base64,${bytes.toString("base64")}`;
+    return { dataUri: `data:${contentType};base64,${bytes.toString("base64")}` };
   } catch (err) {
     process.stderr.write(
       `[drawd-mcp] Failed to inline ${safeHostFor(url)}: ${err.message}\n`,
     );
-    return TRANSPARENT_PNG_DATA_URI;
+    return { dataUri: TRANSPARENT_PNG_DATA_URI, warning: `${url} fetch failed (${err.message}), replaced with transparent fallback` };
   }
 }
 
@@ -243,7 +248,7 @@ export class SatoriRenderer {
     // before any other preprocessing. Satori cannot fetch URLs itself, so
     // unresolved <img> elements would otherwise render as broken/missing.
     // Hostname allowlist is enforced inside inlineRemoteImages (SSRF guard).
-    const inlinedHtml = await inlineRemoteImages(expandedHtml);
+    const { html: inlinedHtml, warnings: imageWarnings } = await inlineRemoteImages(expandedHtml);
 
     // satori-html does not decode HTML entities. Agents frequently write
     // numeric entities (&#9679;, &#x25cf;) and safe named entities (&bull;,
@@ -318,6 +323,7 @@ export class SatoriRenderer {
       chrome: chromeRenderError ? [] : expandedChrome,
       chromeStyle,
       safeArea: chromeRenderError ? { top: 0, bottom: 0, left: 0, right: 0 } : composed.safeArea,
+      warnings: imageWarnings,
       ...(chromeRenderError ? { chromeRenderError } : {}),
     };
   }

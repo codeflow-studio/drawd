@@ -1,6 +1,6 @@
 # Drawd MCP Server
 
-Standalone MCP server for AI agent integration with Drawd flows.
+Standalone [Model Context Protocol](https://modelcontextprotocol.io) server for AI agent integration with Drawd flows.
 
 ## Tools
 
@@ -20,6 +20,7 @@ Standalone MCP server for AI agent integration with Drawd flows.
 | `update_screen` | Update screen properties |
 | `update_screen_image` | Re-render a screen's HTML to update its image |
 | `delete_screen` | Delete a screen and its connections |
+| `create_screen_with_hotspots` | Transactional: create a screen + hotspots + connections in one call (see below) |
 
 ### Hotspots & Connections
 
@@ -174,3 +175,44 @@ Empty `warnings: []` means the HTML passes all checks.
 | `no-br-tag`                | `<br/>` is not supported; use margin/padding        |
 | `text-needs-nowrap`        | Text leaves need `white-space: nowrap` to prevent unexpected wrapping |
 | `unsupported-css-property` | CSS property is outside Satori's supported allowlist |
+
+### `create_screen_with_hotspots`
+
+Create a screen with hotspots and connections in a single transactional call. If any sub-step fails, all changes are rolled back — the `.drawd` file is either fully updated or unchanged.
+
+**Placeholders:**
+
+| Placeholder | Resolves to |
+|-------------|-------------|
+| `@self` | The just-created screen |
+| `@caller` | The screen specified by `callerScreenId` (required when used) |
+
+**Example:**
+
+```json
+{
+  "screen": {
+    "name": "Paywall",
+    "html": "<div style=\"display:flex;flex-direction:column;width:393px;height:852px;background:#1a1a2e;\">...</div>",
+    "device": "iphone",
+    "x": 1240,
+    "y": 4450
+  },
+  "hotspots": [
+    { "label": "Dismiss", "x": 85, "y": 4, "w": 10, "h": 6, "action": "navigate", "target": "@caller" },
+    { "label": "Purchase", "x": 8, "y": 82, "w": 84, "h": 8, "action": "custom", "customDescription": "Trigger in-app purchase flow" }
+  ],
+  "connections": [
+    { "fromHotspot": "Purchase", "to": "screen-id-of-success-page", "action": "navigate", "data_flow": [{ "name": "productId", "type": "String" }] }
+  ],
+  "callerScreenId": "screen-id-that-opened-paywall",
+  "includeThumbnail": true
+}
+```
+
+**Validation rules:**
+
+- Hotspot labels must be unique within the call.
+- `callerScreenId` must be provided (and reference an existing screen) when any placeholder uses `@caller`.
+- `connections[].fromHotspot` must match a label in the `hotspots` array.
+- Duplicate connections (same from-screen + to-screen + hotspot) auto-created by a hotspot's `target` are silently skipped.
