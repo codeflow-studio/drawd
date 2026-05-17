@@ -1,0 +1,218 @@
+# Drawd MCP Server
+
+Standalone [Model Context Protocol](https://modelcontextprotocol.io) server for AI agent integration with Drawd flows.
+
+## Tools
+
+### Flow & Screen Management
+
+| Tool | Description |
+|------|-------------|
+| `open_flow` | Open an existing `.drawd` file |
+| `create_flow` | Create a new empty flow |
+| `save_flow` | Save the current flow to disk |
+| `get_flow_info` | Get flow summary (screens, connections, metadata) |
+| `list_screens` | List all screens with positions and metadata |
+| `get_screen` | Get a screen's full data including rendered image |
+| `get_screen_code` | Get a screen's source HTML |
+| `create_screen` | Create a new screen from HTML content |
+| `create_blank_screen` | Create a placeholder screen |
+| `update_screen` | Update screen properties |
+| `update_screen_image` | Re-render a screen's HTML to update its image |
+| `delete_screen` | Delete a screen and its connections |
+| `create_screen_with_hotspots` | Transactional: create a screen + hotspots + connections in one call (see below) |
+
+### Hotspots & Connections
+
+| Tool | Description |
+|------|-------------|
+| `create_hotspot` | Add an interactive hotspot to a screen |
+| `update_hotspot` | Update hotspot properties |
+| `delete_hotspot` | Remove a hotspot |
+| `list_hotspots` | List hotspots on a screen |
+| `create_connection` | Create a navigation connection between screens |
+| `update_connection` | Update connection properties |
+| `delete_connection` | Remove a connection |
+| `list_connections` | List all connections |
+
+### Documents & Data Models
+
+| Tool | Description |
+|------|-------------|
+| `create_document` | Create a reference document |
+| `update_document` | Update document content |
+| `delete_document` | Remove a document |
+| `list_documents` | List all documents |
+| `create_data_model` | Create a data model definition |
+| `update_data_model` | Update data model fields |
+| `delete_data_model` | Remove a data model |
+| `list_data_models` | List all data models |
+
+### Annotations & Comments
+
+| Tool | Description |
+|------|-------------|
+| `create_sticky_note` | Add a sticky note to the canvas |
+| `create_screen_group` | Group screens together |
+| `update_screen_group` | Update group properties |
+| `delete_screen_group` | Remove a screen group |
+| `create_comment` | Add a comment to a screen or hotspot |
+| `update_comment` | Edit comment text |
+| `resolve_comment` | Mark a comment as resolved |
+| `delete_comment` | Remove a comment |
+| `list_comments` | List comments with optional filters |
+
+### Generation & Analysis
+
+| Tool | Description |
+|------|-------------|
+| `validate_flow` | Run pre-generation validation checks |
+| `generate_instructions` | Generate AI build instructions from the flow |
+| `get_screen_instructions` | Get detailed screen implementation specs |
+| `get_navigation_instructions` | Get navigation architecture docs |
+| `get_build_guide` | Get platform-specific implementation guide |
+| `analyze_navigation` | Detect entry screens, tab bars, modals, loops |
+| `get_design_tokens` | Extract dominant design tokens from flow screens |
+
+### Design Tokens
+
+The `get_design_tokens` tool parses stored screen HTML across the flow and returns the dominant design tokens ranked by per-screen frequency.
+
+**Parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `scopeRoot` | `string` | Screen group ID to scope analysis to |
+| `screenIds` | `string[]` | Explicit screen IDs to analyze (takes precedence over `scopeRoot`) |
+
+**Response shape:**
+
+```json
+{
+  "colors": {
+    "background": ["#0B0B0F"],
+    "surface": ["#1F1F29"],
+    "text": ["#FFFFFF", "#A0A0AB"],
+    "accent": ["#7C5CFF"]
+  },
+  "typography": {
+    "fontFamilies": ["Inter"],
+    "sizes": [12, 14, 16, 20, 28]
+  },
+  "radii": [8, 12, 9999],
+  "spacing": [4, 8, 12, 16, 24],
+  "_meta": {
+    "screensAnalyzed": 8,
+    "screensTotal": 10,
+    "screensSkipped": 2
+  }
+}
+```
+
+**Color categorization heuristics:**
+
+- **background**: `background-color` values appearing on 50%+ of analyzed screens
+- **surface**: `background-color` values appearing on fewer screens (cards, modals, inputs)
+- **text**: values from the CSS `color` property
+- **accent**: `border-color` values and border shorthand colors, deduplicated against other categories
+
+### Assets
+
+| Tool | Description |
+|------|-------------|
+| `generate_icon` | Generate an SVG icon from Iconify |
+| `search_icons` | Search available icon sets |
+| `find_stock_image` | Find a stock photo from Picsum |
+
+### Selection
+
+| Tool | Description |
+|------|-------------|
+| `get_current_selection` | Get the user's current canvas selection (requires bridge) |
+
+## Usage
+
+```bash
+# Start on stdio (standard MCP transport)
+npm start
+
+# With a pre-loaded flow file
+npm start -- --file path/to/flow.drawd
+```
+
+### Validation
+
+#### `validate_html`
+
+Validate HTML/CSS against Satori rendering constraints **without rasterizing**. Returns a structured list of warnings in milliseconds — use before `create_screen` / `update_screen_image` to catch layout bugs before the slow render step.
+
+**Input:**
+
+| Parameter | Type   | Required | Description                                    |
+|-----------|--------|----------|------------------------------------------------|
+| `html`    | string | yes      | The HTML string to validate against Satori constraints |
+
+**Output:**
+
+```json
+{
+  "warnings": [
+    { "path": "div[0] > span[0]", "rule": "text-needs-nowrap", "message": "Text leaf missing white-space: nowrap" },
+    { "path": "div[0]", "rule": "multi-child-needs-flex", "message": "3 children but no display: flex" }
+  ]
+}
+```
+
+Empty `warnings: []` means the HTML passes all checks.
+
+**Rules checked:**
+
+| Rule ID                    | Description                                         |
+|----------------------------|-----------------------------------------------------|
+| `unsupported-position`     | `position: absolute` and `position: fixed` are not supported |
+| `no-style-block`           | `<style>` blocks are not supported; use inline styles |
+| `multi-child-needs-flex`   | Elements with 2+ children must have `display: flex` |
+| `no-br-tag`                | `<br/>` is not supported; use margin/padding        |
+| `text-needs-nowrap`        | Text leaves need `white-space: nowrap` to prevent unexpected wrapping |
+| `unsupported-css-property` | CSS property is outside Satori's supported allowlist |
+
+### `create_screen_with_hotspots`
+
+Create a screen with hotspots and connections in a single transactional call. If any sub-step fails, all changes are rolled back — the `.drawd` file is either fully updated or unchanged.
+
+**Placeholders:**
+
+| Placeholder | Resolves to |
+|-------------|-------------|
+| `@self` | The just-created screen |
+| `@caller` | The screen specified by `callerScreenId` (required when used) |
+
+**Example:**
+
+```json
+{
+  "screen": {
+    "name": "Paywall",
+    "html": "<div style=\"display:flex;flex-direction:column;width:393px;height:852px;background:#1a1a2e;\">...</div>",
+    "device": "iphone",
+    "x": 1240,
+    "y": 4450
+  },
+  "hotspots": [
+    { "label": "Dismiss", "x": 85, "y": 4, "w": 10, "h": 6, "action": "navigate", "target": "@caller" },
+    { "label": "Purchase", "x": 8, "y": 82, "w": 84, "h": 8, "action": "custom", "customDescription": "Trigger in-app purchase flow" }
+  ],
+  "connections": [
+    { "fromHotspot": "Purchase", "to": "screen-id-of-success-page", "action": "navigate", "data_flow": [{ "name": "productId", "type": "String" }] }
+  ],
+  "callerScreenId": "screen-id-that-opened-paywall",
+  "includeThumbnail": true
+}
+```
+
+**Validation rules:**
+
+- Hotspot labels must be unique within the call.
+- `callerScreenId` must be provided (and reference an existing screen) when any placeholder uses `@caller`.
+- `connections[].fromHotspot` must match a label in the `hotspots` array.
+- Duplicate connections (same from-screen + to-screen + hotspot) auto-created by a hotspot's `target` are silently skipped.
