@@ -16,6 +16,9 @@ import { generationTools, handleGenerationTool } from "./tools/generation-tools.
 import { selectionTools, handleSelectionTool } from "./tools/selection-tools.js";
 import { assetTools, handleAssetTool } from "./tools/asset-tools.js";
 import { validationTools, handleValidationTool } from "./tools/validation-tools.js";
+import { composeTools, handleComposeTool } from "./tools/compose-tools.js";
+import { layoutTools, handleLayoutTool } from "./tools/layout-tools.js";
+import { designTokenTools, handleDesignTokenTool } from "./tools/design-token-tools.js";
 
 const FILE_TOOL_NAMES = new Set(fileTools.map((t) => t.name));
 const SCREEN_TOOL_NAMES = new Set(screenTools.map((t) => t.name));
@@ -29,6 +32,9 @@ const GENERATION_TOOL_NAMES = new Set(generationTools.map((t) => t.name));
 const SELECTION_TOOL_NAMES = new Set(selectionTools.map((t) => t.name));
 const ASSET_TOOL_NAMES = new Set(assetTools.map((t) => t.name));
 const VALIDATION_TOOL_NAMES = new Set(validationTools.map((t) => t.name));
+const COMPOSE_TOOL_NAMES = new Set(composeTools.map((t) => t.name));
+const LAYOUT_TOOL_NAMES = new Set(layoutTools.map((t) => t.name));
+const DESIGN_TOKEN_TOOL_NAMES = new Set(designTokenTools.map((t) => t.name));
 
 // filePath is injected into every non-file tool so callers can establish
 // session context inline (auto-loaded once, then reused for the whole session).
@@ -62,10 +68,14 @@ const ALL_TOOLS = [
   ...withFilePath(commentTools),
   ...withFilePath(generationTools),
   ...withFilePath(selectionTools),
+  ...withFilePath(layoutTools),
+  ...withFilePath(designTokenTools),
   // Asset tools (icons, stock photos) are stateless — no flow context required.
   ...assetTools,
   // Validation tools are stateless — no flow context required.
   ...validationTools,
+  // Compose tools return HTML fragments — stateless, no flow context required.
+  ...composeTools,
 ];
 
 export function createServer(state, renderer, bridge) {
@@ -110,10 +120,16 @@ export function createServer(state, renderer, bridge) {
         result = handleGenerationTool(name, args, state);
       } else if (SELECTION_TOOL_NAMES.has(name)) {
         result = handleSelectionTool(name, args, state, bridge);
+      } else if (DESIGN_TOKEN_TOOL_NAMES.has(name)) {
+        result = handleDesignTokenTool(name, args, state);
       } else if (ASSET_TOOL_NAMES.has(name)) {
         result = await handleAssetTool(name, args, state);
       } else if (VALIDATION_TOOL_NAMES.has(name)) {
         result = handleValidationTool(name, args);
+      } else if (COMPOSE_TOOL_NAMES.has(name)) {
+        result = handleComposeTool(name, args);
+      } else if (LAYOUT_TOOL_NAMES.has(name)) {
+        result = handleLayoutTool(name, args, state);
       } else {
         return {
           content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${name}` }) }],
